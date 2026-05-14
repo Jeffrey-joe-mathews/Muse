@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:muse/core/theme/app_theme.dart';
-import 'package:muse/features/search/pages/search_page.dart';
+import 'package:muse/features/root/pages/root_page.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: const SearchPage(),
+      home: const RootPage(),
     );
   }
 }

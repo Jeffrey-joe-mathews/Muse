@@ -1,22 +1,17 @@
+// lib/features/player/controllers/player_controller.dart
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:muse/features/player/services/audio_service.dart';
 import 'package:muse/models/song.dart';
-import '../../../providers/youtube/youtube_provider.dart';
-
 
 // GLOBAL PROVIDER
-
 final playerControllerProvider =
     StateNotifierProvider<PlayerController, PlayerStateModel>(
   (ref) => PlayerController(),
 );
 
-
 // PLAYER STATE MODEL
-
 class PlayerStateModel {
-
   final Song? currentSong;
   final List<Song> queue;
   final int currentIndex;
@@ -41,67 +36,39 @@ class PlayerStateModel {
     Duration? currentPosition,
     Duration? totalDuration,
   }) {
-
     return PlayerStateModel(
       currentSong: currentSong ?? this.currentSong,
       queue: queue ?? this.queue,
       currentIndex: currentIndex ?? this.currentIndex,
       isPlaying: isPlaying ?? this.isPlaying,
-      currentPosition:
-          currentPosition ?? this.currentPosition,
-      totalDuration:
-          totalDuration ?? this.totalDuration,
+      currentPosition: currentPosition ?? this.currentPosition,
+      totalDuration: totalDuration ?? this.totalDuration,
     );
   }
 }
 
-
 // CONTROLLER
-
-class PlayerController
-    extends StateNotifier<PlayerStateModel> {
-
-  PlayerController()
-      : super(const PlayerStateModel()) {
-
+class PlayerController extends StateNotifier<PlayerStateModel> {
+  PlayerController() : super(const PlayerStateModel()) {
     _listenToPlayerStreams();
   }
 
-  final AudioService _audioService =
-      AudioService();
-
-  final YouTubeMusicProvider _provider =
-      YouTubeMusicProvider();
-
+  final AudioService _audioService = AudioService();
 
   // PLAY SONG
-
   Future<void> playSong(Song song) async {
-
-    final streamUrl =
-        await _provider.getStreamUrl(song.id);
-
-    if (streamUrl == null) return;
-    await _audioService.play(streamUrl);
+    await _audioService.play(song.audioURL);
+    
     state = state.copyWith(
       currentSong: song,
       isPlaying: true,
     );
   }
 
-  Future<void> playQueue(
-    List<Song> songs,
-    int startIndex,
-  ) async {
-
+  Future<void> playQueue(List<Song> songs, int startIndex) async {
     final song = songs[startIndex];
 
-    final streamUrl =
-        await _provider.getStreamUrl(song.id);
-
-    if (streamUrl == null) return;
-
-    await _audioService.play(streamUrl);
+    await _audioService.play(song.audioURL);
 
     state = state.copyWith(
       queue: songs,
@@ -111,26 +78,18 @@ class PlayerController
     );
   }
 
-
   // PAUSE / RESUME
-
   Future<void> pauseOrResume() async {
-
     if (state.isPlaying) {
       await _audioService.pause();
-      state = state.copyWith(
-        isPlaying: false,
-      );
+      state = state.copyWith(isPlaying: false);
     } else {
       await _audioService.resume();
-      state = state.copyWith(
-        isPlaying: true,
-      );
+      state = state.copyWith(isPlaying: true);
     }
   }
 
   // SEEK
-
   Future<void> seek(Duration position) async {
     await _audioService.seek(position);
   }
@@ -138,21 +97,10 @@ class PlayerController
   Future<void> playNextSong() async {
     if (state.queue.isEmpty) return;
 
-    final nextIndex =
-        (state.currentIndex + 1) %
-        state.queue.length;
+    final nextIndex = (state.currentIndex + 1) % state.queue.length;
+    final nextSong = state.queue[nextIndex];
 
-    final nextSong =
-        state.queue[nextIndex];
-
-    final streamUrl =
-        await _provider.getStreamUrl(
-          nextSong.id,
-        );
-
-    if (streamUrl == null) return;
-
-    await _audioService.play(streamUrl);
+    await _audioService.play(nextSong.audioURL);
 
     state = state.copyWith(
       currentSong: nextSong,
@@ -164,25 +112,14 @@ class PlayerController
   Future<void> playPreviousSong() async {
     if (state.queue.isEmpty) return;
 
-    int prevIndex =
-        state.currentIndex - 1;
-
+    int prevIndex = state.currentIndex - 1;
     if (prevIndex < 0) {
-      prevIndex =
-          state.queue.length - 1;
+      prevIndex = state.queue.length - 1;
     }
 
-    final prevSong =
-        state.queue[prevIndex];
+    final prevSong = state.queue[prevIndex];
 
-    final streamUrl =
-        await _provider.getStreamUrl(
-          prevSong.id,
-        );
-
-    if (streamUrl == null) return;
-
-    await _audioService.play(streamUrl);
+    await _audioService.play(prevSong.audioURL);
 
     state = state.copyWith(
       currentSong: prevSong,
@@ -191,40 +128,29 @@ class PlayerController
     );
   }
 
-
   // PLAYER STREAM LISTENERS
-
   void _listenToPlayerStreams() {
-
     _audioService.positionStream.listen((position) {
-      state = state.copyWith(
-        currentPosition: position,
-      );
+      state = state.copyWith(currentPosition: position);
     });
 
     _audioService.durationStream.listen((duration) {
-      state = state.copyWith(
-        totalDuration: duration ?? Duration.zero,
-      );
+      state = state.copyWith(totalDuration: duration ?? Duration.zero);
     });
 
     _audioService.playerStateStream.listen((playerState) {
       final playing = playerState.playing;
-      state = state.copyWith(
-        isPlaying: playing,
-      );
+      state = state.copyWith(isPlaying: playing);
+      
       if (playerState.processingState == ProcessingState.completed) {
         playNextSong();
       }
     });
   }
 
-
   // CLEANUP
-
   @override
   void dispose() {
-
     _audioService.dispose();
     super.dispose();
   }
