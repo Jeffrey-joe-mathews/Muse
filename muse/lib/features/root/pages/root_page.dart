@@ -1,13 +1,13 @@
-// lib/features/root/pages/root_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:muse/features/player/widgets/orb.dart';
 import 'dart:ui';
 
-// Dummy pages for now
-import '../../search/pages/search_page.dart'; // We'll repurpose this for Explore
-import '../../library/pages/collection_page.dart'; // Create this
-import '../../player/pages/listen_page.dart'; // Create this
+// Pages
+import '../../search/pages/search_page.dart'; 
+import '../../library/pages/collection_page.dart'; 
+import '../../player/pages/listen_page.dart';
 
 final navIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -20,7 +20,7 @@ class RootPage extends ConsumerWidget {
 
     final pages = [
       const ListenPage(),
-      const SearchPage(), // Will become Explore
+      const SearchPage(), 
       const CollectionPage(),
       const Scaffold(body: Center(child: Text("Intelligence / AI"))), // Placeholder
     ];
@@ -32,7 +32,14 @@ class RootPage extends ConsumerWidget {
         index: currentIndex,
         children: pages,
       ),
-      bottomNavigationBar: const FloatingDock(),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          MuseOrb(),
+          const FloatingDock(),
+        ],
+      ),
     );
   }
 }

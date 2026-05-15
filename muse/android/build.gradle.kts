@@ -33,6 +33,20 @@ subprojects {
             }
         }
     }
+    if (name == "flutter_media_metadata") {
+        pluginManager.withPlugin("com.android.library") {
+            extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+                val manifest = project.file("src/main/AndroidManifest.xml")
+                if (manifest.exists()) {
+                    val text = manifest.readText()
+                    val match = Regex("""package="(.+?)"""").find(text)
+                    if (match != null) {
+                        namespace = match.groupValues[1]
+                    }
+                }
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

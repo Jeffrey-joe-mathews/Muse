@@ -1,113 +1,130 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:muse/features/player/widgets/orb.dart';
-
 import '../controllers/search_controller.dart';
-import '../widgets/search_tile.dart';
-
 import '../../player/controllers/player_controller.dart';
 
-class SearchPage extends ConsumerStatefulWidget {
+class SearchPage extends ConsumerWidget {
   const SearchPage({super.key});
 
   @override
-  ConsumerState<SearchPage> createState() => _SearchPageState();
-}
-
-class _SearchPageState extends ConsumerState<SearchPage> {
-  final TextEditingController _controller = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final searchState = ref.watch(searchControllerProvider);
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Search"),
+        backgroundColor: Colors.transparent,
+        title: TextField(
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: "Search SoundCloud, YouTube, etc...",
+            hintStyle: TextStyle(color: Colors.white54),
+            border: InputBorder.none,
+            prefixIcon: Icon(Icons.search, color: Colors.white54),
+          ),
+          onSubmitted: (query) {
+            ref.read(searchControllerProvider.notifier).searchMusic(query);
+          },
+        ),
       ),
+      body: searchState.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+        error: (err, stack) => Center(child: Text("Error: $err", style: const TextStyle(color: Colors.red))),
+        data: (resultsMap) {
+          if (resultsMap.isEmpty) {
+            return const Center(child: Text("Type a track or artist to begin...", style: TextStyle(color: Colors.white54)));
+          }
 
-      body: Column(
-        children: [
+          // Build a vertical list of Providers
+          return ListView.builder(
+            itemCount: resultsMap.keys.length,
+            itemBuilder: (context, verticalIndex) {
+              final providerName = resultsMap.keys.elementAt(verticalIndex);
+              final songs = resultsMap[providerName]!;
 
-          /// SEARCH BAR
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _controller,
-
-              decoration: InputDecoration(
-                hintText: "Search songs...",
-                prefixIcon: const Icon(Icons.search),
-
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+              return Padding(
+                padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Provider Label (e.g., "SoundCloud")
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text(
+                        providerName,
+                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // THE FIX: Increased height from 180 to 220 so the text won't overflow
+                    SizedBox(
+                      height: 190, 
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        itemCount: songs.length,
+                        itemBuilder: (context, horizontalIndex) {
+                          final song = songs[horizontalIndex];
+                          
+                          return GestureDetector(
+                            onTap: () {
+                              ref.read(playerControllerProvider.notifier).playQueue(songs, horizontalIndex);
+                            },
+                            child: Container(
+                              width: 130, // Width of each card
+                              margin: const EdgeInsets.symmetric(horizontal: 6.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min, // THE FIX: Prevents overflow panic
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Artwork Square
+                                  Container(
+                                    height: 130,
+                                    width: 130,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white10,
+                                      borderRadius: BorderRadius.circular(12),
+                                      image: song.albumArt.isNotEmpty
+                                          ? DecorationImage(
+                                              image: NetworkImage(song.albumArt),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : null,
+                                    ),
+                                    child: song.albumArt.isEmpty
+                                        ? const Icon(Icons.music_note, color: Colors.white54, size: 40)
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Title
+                                  Text(
+                                    song.title,
+                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  // Artist
+                                  Text(
+                                    song.artist,
+                                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-
-              onSubmitted: (value) {
-                ref
-                    .read(searchControllerProvider.notifier)
-                    .search(value);
-              },
-            ),
-          ),
-
-          /// RESULTS
-          Expanded(
-            child: searchState.when(
-              data: (songs) {
-
-                if (songs.isEmpty) {
-                  return const Center(
-                    child: Text("Search something"),
-                  );
-                }
-
-                return ListView.builder(
-                  itemCount: songs.length,
-
-                  itemBuilder: (context, index) {
-                    final song = songs[index];
-
-                    return SearchTile(
-                      song: song,
-
-                      onTap: () async {
-
-                        await ref
-                            .read(playerControllerProvider.notifier)
-                            // .playSong(song);
-                            .playQueue(songs, index);
-                      },
-                    );
-                  },
-                );
-              },
-
-              loading: () {
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
-              },
-
-              error: (e, _) {
-                return Center(
-                  child: Text(
-                    e.toString(),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+              );
+            },
+          );
+        },
       ),
-      bottomNavigationBar: const MuseOrb(),
-      // floatingActionButtonLocation:
-    // FloatingActionButtonLocation.endFloat,
-      // bottomNavigationBar: Container(
-      //   height: 80,
-      //   color: Colors.red,
-      // ),
     );
   }
 }

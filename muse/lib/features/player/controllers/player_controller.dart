@@ -57,18 +57,16 @@ class PlayerController extends StateNotifier<PlayerStateModel> {
 
   // PLAY SONG
   Future<void> playSong(Song song) async {
-    await _audioService.play(song.audioURL);
-    
     state = state.copyWith(
       currentSong: song,
       isPlaying: true,
     );
+
+    await _audioService.play(song);
   }
 
   Future<void> playQueue(List<Song> songs, int startIndex) async {
     final song = songs[startIndex];
-
-    await _audioService.play(song.audioURL);
 
     state = state.copyWith(
       queue: songs,
@@ -76,6 +74,8 @@ class PlayerController extends StateNotifier<PlayerStateModel> {
       currentSong: song,
       isPlaying: true,
     );
+
+    await _audioService.play(song);
   }
 
   // PAUSE / RESUME
@@ -100,13 +100,13 @@ class PlayerController extends StateNotifier<PlayerStateModel> {
     final nextIndex = (state.currentIndex + 1) % state.queue.length;
     final nextSong = state.queue[nextIndex];
 
-    await _audioService.play(nextSong.audioURL);
-
     state = state.copyWith(
       currentSong: nextSong,
       currentIndex: nextIndex,
       isPlaying: true,
     );
+
+    await _audioService.play(nextSong);
   }
 
   Future<void> playPreviousSong() async {
@@ -119,13 +119,13 @@ class PlayerController extends StateNotifier<PlayerStateModel> {
 
     final prevSong = state.queue[prevIndex];
 
-    await _audioService.play(prevSong.audioURL);
-
     state = state.copyWith(
       currentSong: prevSong,
       currentIndex: prevIndex,
       isPlaying: true,
     );
+
+    await _audioService.play(prevSong);
   }
 
   // PLAYER STREAM LISTENERS

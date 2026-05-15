@@ -1,9 +1,17 @@
+// lib/providers/local/local_provider.dart
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../models/song.dart';
+import '../base/music_provider.dart';
 
-class LocalMusicProvider {
+import '../../core/services/metadata_service.dart';
+
+class LocalMusicProvider implements MusicProvider {
   final OnAudioQuery _audioQuery = OnAudioQuery();
+  final MetadataService _metadataService = MetadataService();
+
+  @override
+  String get sourceName => 'local';
 
   Future<bool> requestPermissions() async {
     var status = await Permission.audio.request();
@@ -29,11 +37,46 @@ class LocalMusicProvider {
         id: song.id.toString(),
         title: song.title,
         artist: song.artist ?? "Unknown Artist",
-        albumArt: "",
-        audioURL: song.data, // This is the absolute file path
+        albumArt: "", // Auto-scans omit artwork to save memory. We fix this later.
+        audioURL: song.data, 
         duration: Duration(milliseconds: song.duration ?? 0),
         source: SongSource.local,
       );
     }).toList();
+  }
+
+  @override
+  Future<List<Song>> search(String query) async {
+    // We can implement local device search later
+    return [];
+  }
+
+  @override
+  Future<Song?> getSongDetails(String id) async {
+    // For local files, normalizing it again gets the details
+    return await normalizeTrack(id); 
+  }
+
+  @override
+  Future<String?> getStreamUrl(String id) async {
+    // For local files, the ID/path IS the playable URL
+    return id; 
+  }
+
+  @override
+  Future<Song> normalizeTrack(String input) async {
+    // 'input' is the raw file path from the file picker
+    // We use the MetadataService to crack open the MP3 and grab the cover art
+    final meta = await _metadataService.extractLocalMetadata(input);
+
+    return Song(
+      id: input.hashCode.toString(), 
+      title: meta['title'],
+      artist: meta['artist'],
+      albumArt: meta['albumArt'], // Clean String path to the cached JPEG!
+      audioURL: input,
+      duration: meta['duration'],
+      source: SongSource.local,
+    );
   }
 }

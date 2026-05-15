@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:muse/app.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize the background audio OS
+  await JustAudioBackground.init(
+    androidNotificationChannelId: 'com.muse.app.channel.audio',
+    androidNotificationChannelName: 'Muse Playback',
+    androidNotificationOngoing: true,
+  );
 
   runApp(
     const ProviderScope(
@@ -10,7 +19,6 @@ void main() {
     ),
   );
 }
-
 
 class MuseApp extends StatelessWidget {
 

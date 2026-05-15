@@ -3,7 +3,8 @@ enum SongSource {
   archive,
   youtube,
   jamendo,
-  soundcloud
+  soundcloud,
+  audius,
 }
 
 class Song {

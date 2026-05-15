@@ -1,279 +1,98 @@
-import 'dart:ui';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'dart:ui';
 import '../controllers/player_controller.dart';
+import '../pages/listen_page.dart';
 
-class MuseOrb extends ConsumerStatefulWidget {
+class MuseOrb extends ConsumerWidget {
+  
   const MuseOrb({super.key});
 
   @override
-  ConsumerState<MuseOrb> createState() =>
-      _MuseOrbState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerState = ref.watch(playerControllerProvider);
+    final song = playerState.currentSong;
 
-class _MuseOrbState
-    extends ConsumerState<MuseOrb>
-    with SingleTickerProviderStateMixin {
-
-  bool expanded = false;
-
-  late AnimationController glowController;
-
-  @override
-  void initState() {
-    super.initState();
-
-    glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    glowController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-
-    final playerState =
-        ref.watch(playerControllerProvider);
-
-    final currentSong =
-        playerState.currentSong;
-
-    if (currentSong == null) {
-      return const SizedBox();
-    }
+    // Invisible if nothing is playing
+    if (song == null) return const SizedBox.shrink();
 
     return GestureDetector(
-
-      /// TAP → OPEN PLAYER PAGE
       onTap: () {
-
-        HapticFeedback.lightImpact();
-
-        // TODO:
-        // open full player page
+        // Slide up the Listen Page
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true, // Forces full screen
+          useSafeArea: true,
+          backgroundColor: Colors.transparent, 
+          builder: (context) => const ListenPage(),
+        );
       },
-
-      /// SWIPE UP → NEXT SONG
-      onVerticalDragEnd: (details) {
-
-        final velocity =
-            details.primaryVelocity ?? 0;
-
-        if (velocity < 0) {
-
-          ref
-              .read(
-                playerControllerProvider.notifier,
-              )
-              .playNextSong();
-
-        } else {
-
-          ref
-              .read(
-                playerControllerProvider.notifier,
-              )
-              .playPreviousSong();
-        }
-
-        HapticFeedback.mediumImpact();
-      },
-
-      /// LONG PRESS → EXPAND
-      onLongPress: () {
-
-        setState(() {
-          expanded = !expanded;
-        });
-
-        HapticFeedback.heavyImpact();
-      },
-
-      child: AnimatedContainer(
-        duration: const Duration(
-          milliseconds: 350,
-        ),
-
-        width: expanded ? 260 : 78,
-
-        height: expanded ? 240 : 78,
-
+      child: Container(
+        height: 60,
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
         decoration: BoxDecoration(
-
-          shape: expanded
-              ? BoxShape.rectangle
-              : BoxShape.circle,
-
-          borderRadius:
-              expanded
-                  ? BorderRadius.circular(28)
-                  : null,
-
-          image: DecorationImage(
-            image: NetworkImage(
-              currentSong.albumArt,
-            ),
-
-            fit: BoxFit.cover,
-
-            opacity: expanded ? 0.25 : 1,
-          ),
-
-          boxShadow: [
-
-            BoxShadow(
-              color: Colors.white.withOpacity(
-                glowController.value * 0.25,
-              ),
-
-              blurRadius:
-                  30 + glowController.value * 20,
-
-              spreadRadius:
-                  1 + glowController.value * 2,
-            ),
-          ],
+          color: Colors.grey.shade900.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
-
         child: ClipRRect(
-          borderRadius:
-              BorderRadius.circular(28),
-
+          borderRadius: BorderRadius.circular(20),
           child: BackdropFilter(
-            filter: ImageFilter.blur(
-              sigmaX: 15,
-              sigmaY: 15,
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                
+                // ARTWORK (Safely handles missing images)
+                // ARTWORK (Safely handles local vs web images)
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white12,
+                    shape: BoxShape.circle, 
+                    image: song.albumArt.isNotEmpty 
+                        ? DecorationImage(
+                            image: song.albumArt.startsWith('http') 
+                                ? NetworkImage(song.albumArt) as ImageProvider
+                                : FileImage(File(song.albumArt)),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: song.albumArt.isEmpty 
+                      ? const Icon(Icons.music_note, color: Colors.white54, size: 20)
+                      : null,
+                ),
+                
+                const SizedBox(width: 12),
+                
+                // TRACK INFO
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                
+                // PLAY/PAUSE
+                IconButton(
+                  icon: Icon(playerState.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white),
+                  onPressed: () {
+                    ref.read(playerControllerProvider.notifier).pauseOrResume();
+                  },
+                ),
+                const SizedBox(width: 8),
+              ],
             ),
-
-            child: expanded
-                ? _buildExpandedContent(
-                    currentSong.title,
-                    currentSong.artist,
-                  )
-                : const SizedBox(),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildExpandedContent(
-    String title,
-    String artist,
-  ) {
-
-    return Padding(
-      padding: const EdgeInsets.all(18),
-
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
-        children: [
-
-          const Spacer(),
-
-          Text(
-            title,
-
-            maxLines: 1,
-
-            overflow: TextOverflow.ellipsis,
-
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            artist,
-
-            maxLines: 1,
-
-            overflow: TextOverflow.ellipsis,
-
-            style: const TextStyle(
-              color: Colors.white70,
-            ),
-          ),
-
-          const Spacer(),
-
-          Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceEvenly,
-
-            children: [
-
-              IconButton(
-                onPressed: () {
-
-                  ref
-                      .read(
-                        playerControllerProvider
-                            .notifier,
-                      )
-                      .playPreviousSong();
-                },
-
-                icon: const Icon(
-                  Icons.skip_previous_rounded,
-                  color: Colors.white,
-                  size: 32,
-                ),
-              ),
-
-              IconButton(
-                onPressed: () {
-
-                  ref
-                      .read(
-                        playerControllerProvider
-                            .notifier,
-                      )
-                      .pauseOrResume();
-                },
-
-                icon: const Icon(
-                  Icons.pause_rounded,
-                  color: Colors.white,
-                  size: 42,
-                ),
-              ),
-
-              IconButton(
-                onPressed: () {
-
-                  ref
-                      .read(
-                        playerControllerProvider
-                            .notifier,
-                      )
-                      .playNextSong();
-                },
-
-                icon: const Icon(
-                  Icons.skip_next_rounded,
-                  color: Colors.white,
-                  size: 32,
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
