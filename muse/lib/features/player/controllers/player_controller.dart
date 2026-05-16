@@ -78,6 +78,30 @@ class PlayerController extends StateNotifier<PlayerStateModel> {
     await _audioService.play(song);
   }
 
+  // REMOVE FROM QUEUE
+  void removeFromQueue(int index) {
+    // Safety check
+    if (index < 0 || index >= state.queue.length) return;
+
+    final updatedQueue = List<Song>.from(state.queue);
+    
+    updatedQueue.removeAt(index);
+
+    int updatedIndex = state.currentIndex;
+    
+    if (index < updatedIndex) {
+      updatedIndex--;
+    } 
+    else if (updatedIndex >= updatedQueue.length) {
+      updatedIndex = updatedQueue.isEmpty ? 0 : updatedQueue.length - 1;
+    }
+
+    state = state.copyWith(
+      queue: updatedQueue,
+      currentIndex: updatedIndex,
+    );
+  }
+
   // PAUSE / RESUME
   Future<void> pauseOrResume() async {
     if (state.isPlaying) {

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:muse/features/player/widgets/orb.dart';
 import 'dart:ui';
 
 // Pages
 import '../../search/pages/search_page.dart'; 
 import '../../library/pages/collection_page.dart'; 
-import '../../player/pages/listen_page.dart';
+import 'package:muse/features/flow/pages/flow_page.dart';
+import 'package:muse/features/player/widgets/orb.dart';
 
 final navIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -19,7 +19,7 @@ class RootPage extends ConsumerWidget {
     final currentIndex = ref.watch(navIndexProvider);
 
     final pages = [
-      const ListenPage(),
+      const FlowPage(),
       const SearchPage(), 
       const CollectionPage(),
       const Scaffold(body: Center(child: Text("Intelligence / AI"))), // Placeholder
@@ -68,7 +68,7 @@ class FloatingDock extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _DockItem(icon: Icons.play_circle_fill, label: "Listen", index: 0, currentIndex: currentIndex, ref: ref),
+                  _DockItem(icon: Icons.waves_rounded, label: "Flow", index: 0, currentIndex: currentIndex, ref: ref),
                   _DockItem(icon: Icons.explore, label: "Explore", index: 1, currentIndex: currentIndex, ref: ref),
                   _DockItem(icon: Icons.library_music, label: "Collection", index: 2, currentIndex: currentIndex, ref: ref),
                   _DockItem(icon: Icons.auto_awesome, label: "Intel", index: 3, currentIndex: currentIndex, ref: ref),

@@ -23,8 +23,8 @@ class MuseOrb extends ConsumerWidget {
         // Slide up the Listen Page
         showModalBottomSheet(
           context: context,
-          isScrollControlled: true, // Forces full screen
-          useSafeArea: true,
+          isScrollControlled: true, 
+          useSafeArea: false,
           backgroundColor: Colors.transparent, 
           builder: (context) => const ListenPage(),
         );
