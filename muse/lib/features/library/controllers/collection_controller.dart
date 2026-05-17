@@ -26,16 +26,28 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
   Future<void> loadSongs() async {
     try {
       final entities = await _db.getAllSongs();
+
+      SongSource parseSource(String src) {
+        switch (src) {
+          case 'soundcloud': return SongSource.soundcloud;
+          case 'jamendo': return SongSource.jamendo;
+          case 'youtube': return SongSource.youtube;
+          case 'audius': return SongSource.audius;
+          case 'archive': return SongSource.archive;
+          default: return SongSource.local;
+        }
+      }
       
       final songs = entities.map((entity) {
         return Song(
-          id: entity.id.toString(),
+          id: entity.networkId ?? entity.id.toString(),
           title: entity.title,
-          // 2. Pull the actual artist and album art from the DB!
           artist: entity.artist, 
           albumArt: entity.albumArtPath, 
-          audioURL: entity.filePath,
-          source: SongSource.local,
+          audioURL: (entity.streamUrl != null && entity.streamUrl!.isNotEmpty) 
+              ? entity.streamUrl! 
+              : entity.filePath,
+          source: parseSource(entity.source),
         );
       }).toList();
 
@@ -56,9 +68,27 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
       ..title = normalizedSong.title
       ..artist = normalizedSong.artist
       ..albumArtPath = normalizedSong.albumArt
-      ..filePath = normalizedSong.audioURL;
+      ..filePath = normalizedSong.audioURL
+      ..source = 'local';
 
     await _db.saveSong(newSong);
     await loadSongs(); 
+  }
+
+  Future<void> addStreamShortcut(Song networkSong) async {
+    // We create a "dummy" path so Isar's unique index is happy, 
+    final dummyPath = "stream://${networkSong.source.name}/${networkSong.id}";
+
+    final newShortcut = SongEntity()
+      ..title = networkSong.title
+      ..artist = networkSong.artist
+      ..albumArtPath = networkSong.albumArt
+      ..filePath = dummyPath 
+      ..streamUrl = networkSong.audioURL 
+      ..source = networkSong.source.name 
+      ..networkId = networkSong.id;
+
+    await _db.saveSong(newShortcut);
+    await loadSongs();
   }
 }

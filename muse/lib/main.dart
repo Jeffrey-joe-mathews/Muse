@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:muse/app.dart';
+import 'package:muse/core/services/storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +13,8 @@ Future<void> main() async {
     androidNotificationChannelName: 'Muse Playback',
     androidNotificationOngoing: true,
   );
+
+  await StorageService().initVault();
 
   runApp(
     const ProviderScope(

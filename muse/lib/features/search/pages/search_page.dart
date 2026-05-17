@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:muse/features/library/controllers/collection_controller.dart';
 import '../controllers/search_controller.dart';
 import '../../player/controllers/player_controller.dart';
 
@@ -70,6 +71,18 @@ class SearchPage extends ConsumerWidget {
                           return GestureDetector(
                             onTap: () {
                               ref.read(playerControllerProvider.notifier).playQueue(songs, horizontalIndex);
+                            },
+                            onLongPress: () {
+                              ref.read(collectionControllerProvider.notifier).addStreamShortcut(song);
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Saved ${song.title} to Collection 🔗"),
+                                  backgroundColor: Colors.teal.shade800,
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
                             },
                             child: Container(
                               width: 130, // Width of each card

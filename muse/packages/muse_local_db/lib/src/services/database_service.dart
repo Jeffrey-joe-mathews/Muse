@@ -31,4 +31,9 @@ class DatabaseService {
     final isar = await db;
     return await isar.songEntitys.where().findAll();
   }
+
+  Future<SongEntity?> getSongByPath(String path) async {
+    final isar = await db;
+    return await isar.songEntitys.filter().filePathEqualTo(path).findFirst();
+  }
 }

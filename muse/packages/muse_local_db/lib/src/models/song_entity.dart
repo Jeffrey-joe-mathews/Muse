@@ -9,4 +9,7 @@ class SongEntity {
   late String filePath;
   String artist = "Unknown Artist";
   String albumArtPath = "";
+  String source = "local"; 
+  String? streamUrl; 
+  String? networkId;
 }

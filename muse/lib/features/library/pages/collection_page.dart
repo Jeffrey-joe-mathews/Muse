@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:muse/core/services/storage_service.dart';
 import 'package:muse/features/player/controllers/player_controller.dart';
-import 'package:path_provider/path_provider.dart';
 import '../controllers/collection_controller.dart';
 
 class CollectionPage extends ConsumerWidget {
@@ -35,16 +35,18 @@ class CollectionPage extends ConsumerWidget {
             final name = result.files.first.name;
             
             if (pickedPath != null) {
-              // 1. Get the app's permanent vault
-              final appDir = await getApplicationDocumentsDirectory();
-              final musicDir = Directory('${appDir.path}/music');
-              if (!await musicDir.exists()) await musicDir.create();
+              // 1. Get the public vault from your StorageService
+              final vaultPath = StorageService().vaultPath;
+              final vaultDir = Directory(vaultPath);
 
-              // 2. Copy the file out of the volatile cache
-              final permanentFile = await File(pickedPath).copy('${musicDir.path}/$name');
+              // 2. Copy the cached file to the permanent public folder
+              final permanentFile = await File(pickedPath).copy('${vaultDir.path}/$name');
 
-              // 3. Save THIS permanent path to Isar, NOT the cache path!
+              // 3. Send the public path to Isar
               ref.read(collectionControllerProvider.notifier).addSong(permanentFile.path);
+              
+              // Optional: Clean up the cache so we don't waste storage
+              File(pickedPath).delete().ignore();
             }
           }
         },
