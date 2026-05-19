@@ -32,23 +32,33 @@ const SongEntitySchema = CollectionSchema(
       name: r'filePath',
       type: IsarType.string,
     ),
-    r'networkId': PropertySchema(
+    r'isSavedToVault': PropertySchema(
       id: 3,
+      name: r'isSavedToVault',
+      type: IsarType.bool,
+    ),
+    r'lastPlayed': PropertySchema(
+      id: 4,
+      name: r'lastPlayed',
+      type: IsarType.dateTime,
+    ),
+    r'networkId': PropertySchema(
+      id: 5,
       name: r'networkId',
       type: IsarType.string,
     ),
     r'source': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'source',
       type: IsarType.string,
     ),
     r'streamUrl': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'streamUrl',
       type: IsarType.string,
     ),
     r'title': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'title',
       type: IsarType.string,
     )
@@ -102,10 +112,12 @@ void _songEntitySerialize(
   writer.writeString(offsets[0], object.albumArtPath);
   writer.writeString(offsets[1], object.artist);
   writer.writeString(offsets[2], object.filePath);
-  writer.writeString(offsets[3], object.networkId);
-  writer.writeString(offsets[4], object.source);
-  writer.writeString(offsets[5], object.streamUrl);
-  writer.writeString(offsets[6], object.title);
+  writer.writeBool(offsets[3], object.isSavedToVault);
+  writer.writeDateTime(offsets[4], object.lastPlayed);
+  writer.writeString(offsets[5], object.networkId);
+  writer.writeString(offsets[6], object.source);
+  writer.writeString(offsets[7], object.streamUrl);
+  writer.writeString(offsets[8], object.title);
 }
 
 SongEntity _songEntityDeserialize(
@@ -119,10 +131,12 @@ SongEntity _songEntityDeserialize(
   object.artist = reader.readString(offsets[1]);
   object.filePath = reader.readString(offsets[2]);
   object.id = id;
-  object.networkId = reader.readStringOrNull(offsets[3]);
-  object.source = reader.readString(offsets[4]);
-  object.streamUrl = reader.readStringOrNull(offsets[5]);
-  object.title = reader.readString(offsets[6]);
+  object.isSavedToVault = reader.readBool(offsets[3]);
+  object.lastPlayed = reader.readDateTimeOrNull(offsets[4]);
+  object.networkId = reader.readStringOrNull(offsets[5]);
+  object.source = reader.readString(offsets[6]);
+  object.streamUrl = reader.readStringOrNull(offsets[7]);
+  object.title = reader.readString(offsets[8]);
   return object;
 }
 
@@ -140,12 +154,16 @@ P _songEntityDeserializeProp<P>(
     case 2:
       return (reader.readString(offset)) as P;
     case 3:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 4:
-      return (reader.readString(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 5:
       return (reader.readStringOrNull(offset)) as P;
     case 6:
+      return (reader.readString(offset)) as P;
+    case 7:
+      return (reader.readStringOrNull(offset)) as P;
+    case 8:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -689,6 +707,89 @@ extension SongEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'id',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      isSavedToVaultEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isSavedToVault',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      lastPlayedIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'lastPlayed',
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      lastPlayedIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'lastPlayed',
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition> lastPlayedEqualTo(
+      DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lastPlayed',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      lastPlayedGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lastPlayed',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      lastPlayedLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lastPlayed',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition> lastPlayedBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lastPlayed',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -1308,6 +1409,31 @@ extension SongEntityQuerySortBy
     });
   }
 
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> sortByIsSavedToVault() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSavedToVault', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy>
+      sortByIsSavedToVaultDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSavedToVault', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> sortByLastPlayed() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPlayed', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> sortByLastPlayedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPlayed', Sort.desc);
+    });
+  }
+
   QueryBuilder<SongEntity, SongEntity, QAfterSortBy> sortByNetworkId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'networkId', Sort.asc);
@@ -1407,6 +1533,31 @@ extension SongEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> thenByIsSavedToVault() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSavedToVault', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy>
+      thenByIsSavedToVaultDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSavedToVault', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> thenByLastPlayed() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPlayed', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> thenByLastPlayedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPlayed', Sort.desc);
+    });
+  }
+
   QueryBuilder<SongEntity, SongEntity, QAfterSortBy> thenByNetworkId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'networkId', Sort.asc);
@@ -1479,6 +1630,18 @@ extension SongEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<SongEntity, SongEntity, QDistinct> distinctByIsSavedToVault() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isSavedToVault');
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QDistinct> distinctByLastPlayed() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lastPlayed');
+    });
+  }
+
   QueryBuilder<SongEntity, SongEntity, QDistinct> distinctByNetworkId(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1531,6 +1694,18 @@ extension SongEntityQueryProperty
   QueryBuilder<SongEntity, String, QQueryOperations> filePathProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'filePath');
+    });
+  }
+
+  QueryBuilder<SongEntity, bool, QQueryOperations> isSavedToVaultProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isSavedToVault');
+    });
+  }
+
+  QueryBuilder<SongEntity, DateTime?, QQueryOperations> lastPlayedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lastPlayed');
     });
   }
 

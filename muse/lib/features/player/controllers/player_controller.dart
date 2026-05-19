@@ -1,13 +1,15 @@
 // lib/features/player/controllers/player_controller.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:muse/features/player/services/audio_service.dart';
+import 'package:muse/features/radio_player/controller/radio_controller.dart';
 import 'package:muse/models/song.dart';
 
 // GLOBAL PROVIDER
 final playerControllerProvider =
     StateNotifierProvider<PlayerController, PlayerStateModel>(
-  (ref) => PlayerController(),
+  (ref) => PlayerController(ref),
 );
 
 // PLAYER STATE MODEL
@@ -49,14 +51,24 @@ class PlayerStateModel {
 
 // CONTROLLER
 class PlayerController extends StateNotifier<PlayerStateModel> {
-  PlayerController() : super(const PlayerStateModel()) {
+  final Ref ref;
+
+  PlayerController(this.ref) : super(const PlayerStateModel()) {
     _listenToPlayerStreams();
   }
 
   final AudioService _audioService = AudioService();
 
+  Future<void> stopAndClear() async {
+    await _audioService.stop();
+    state = const PlayerStateModel();
+  }
+
   // PLAY SONG
   Future<void> playSong(Song song) async {
+    
+    ref.read(radioControllerProvider.notifier).stopRadio();
+
     state = state.copyWith(
       currentSong: song,
       isPlaying: true,
@@ -66,6 +78,8 @@ class PlayerController extends StateNotifier<PlayerStateModel> {
   }
 
   Future<void> playQueue(List<Song> songs, int startIndex) async {
+    ref.read(radioControllerProvider.notifier).stopRadio();
+
     final song = songs[startIndex];
 
     state = state.copyWith(

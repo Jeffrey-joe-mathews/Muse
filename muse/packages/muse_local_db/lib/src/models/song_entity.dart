@@ -12,4 +12,6 @@ class SongEntity {
   String source = "local"; 
   String? streamUrl; 
   String? networkId;
+  bool isSavedToVault = false;
+  DateTime? lastPlayed;
 }

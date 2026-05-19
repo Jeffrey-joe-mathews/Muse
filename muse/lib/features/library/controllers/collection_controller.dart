@@ -1,4 +1,4 @@
-// lib/features/library/controllers/collection_controller.dart
+// TwT
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -38,6 +38,8 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
         }
       }
       
+      final vaultEntities = entities.where((e) => e.isSavedToVault == true).toList();
+
       final songs = entities.map((entity) {
         return Song(
           id: entity.networkId ?? entity.id.toString(),
@@ -69,7 +71,9 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
       ..artist = normalizedSong.artist
       ..albumArtPath = normalizedSong.albumArt
       ..filePath = normalizedSong.audioURL
-      ..source = 'local';
+      ..source = 'local'
+      ..isSavedToVault = true
+      ..lastPlayed = DateTime.now();
 
     await _db.saveSong(newSong);
     await loadSongs(); 
@@ -86,7 +90,9 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
       ..filePath = dummyPath 
       ..streamUrl = networkSong.audioURL 
       ..source = networkSong.source.name 
-      ..networkId = networkSong.id;
+      ..networkId = networkSong.id
+      ..isSavedToVault = true 
+      ..lastPlayed = DateTime.now();
 
     await _db.saveSong(newShortcut);
     await loadSongs();

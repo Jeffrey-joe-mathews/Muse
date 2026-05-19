@@ -1,14 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:muse/features/library/controllers/collection_controller.dart';
+import 'package:muse/features/search/widgets/history_widget.dart';
+import 'package:muse/features/search/widgets/radio_widget.dart';
 import '../controllers/search_controller.dart';
+import '../controllers/history_controller.dart';
 import '../../player/controllers/player_controller.dart';
+import '../../../models/song.dart';
 
-class SearchPage extends ConsumerWidget {
+class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends ConsumerState<SearchPage> {
+  final FocusNode _searchFocusNode = FocusNode();
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final searchState = ref.watch(searchControllerProvider);
 
     return Scaffold(
@@ -16,128 +43,148 @@ class SearchPage extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: "Search SoundCloud, YouTube, etc...",
-            hintStyle: TextStyle(color: Colors.white54),
+            hintStyle: const TextStyle(color: Colors.white54),
             border: InputBorder.none,
-            prefixIcon: Icon(Icons.search, color: Colors.white54),
+            prefixIcon: const Icon(Icons.search, color: Colors.white54),
+            suffixIcon: _searchFocusNode.hasFocus || _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () {
+                      _searchController.clear();
+                      _searchFocusNode.unfocus();
+                    },
+                  )
+                : null,
           ),
           onSubmitted: (query) {
             ref.read(searchControllerProvider.notifier).searchMusic(query);
+            _searchFocusNode.unfocus(); 
           },
         ),
       ),
-      body: searchState.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
-        error: (err, stack) => Center(child: Text("Error: $err", style: const TextStyle(color: Colors.red))),
-        data: (resultsMap) {
-          if (resultsMap.isEmpty) {
-            return const Center(child: Text("Type a track or artist to begin...", style: TextStyle(color: Colors.white54)));
-          }
+      
+      // 2. USE THE MODULAR WIDGET HERE
+      body: _searchFocusNode.hasFocus 
+          ? SearchHistoryWidget(searchFocusNode: _searchFocusNode) 
+          : _buildSearchResults(searchState),
+    );
+  }
 
-          // Build a vertical list of Providers
-          return ListView.builder(
-            itemCount: resultsMap.keys.length,
-            itemBuilder: (context, verticalIndex) {
-              final providerName = resultsMap.keys.elementAt(verticalIndex);
-              final songs = resultsMap[providerName]!;
+  Widget _buildSearchResults(AsyncValue<Map<String, List<Song>>> searchState) {
+    return searchState.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+      error: (err, stack) => Center(child: Text("Error: $err", style: const TextStyle(color: Colors.red))),
+      data: (resultsMap) {
+        if (resultsMap.isEmpty) {
+          return const Column(
+            children: [
+              SizedBox(height: 20),
+              RadioDashboardWidget(), 
+            ],
+          );
+        }
 
-              return Padding(
-                padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Provider Label (e.g., "SoundCloud")
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text(
-                        providerName,
-                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
+        return ListView.builder(
+          itemCount: resultsMap.keys.length,
+          itemBuilder: (context, verticalIndex) {
+            final providerName = resultsMap.keys.elementAt(verticalIndex);
+            final songs = resultsMap[providerName]!;
+
+            return Padding(
+              padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      providerName,
+                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 12),
-                    
-                    // THE FIX: Increased height from 180 to 220 so the text won't overflow
-                    SizedBox(
-                      height: 190, 
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        itemCount: songs.length,
-                        itemBuilder: (context, horizontalIndex) {
-                          final song = songs[horizontalIndex];
-                          
-                          return GestureDetector(
-                            onTap: () {
-                              ref.read(playerControllerProvider.notifier).playQueue(songs, horizontalIndex);
-                            },
-                            onLongPress: () {
-                              ref.read(collectionControllerProvider.notifier).addStreamShortcut(song);
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("Saved ${song.title} to Collection 🔗"),
-                                  backgroundColor: Colors.teal.shade800,
-                                  behavior: SnackBarBehavior.floating,
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              width: 130, // Width of each card
-                              margin: const EdgeInsets.symmetric(horizontal: 6.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min, // THE FIX: Prevents overflow panic
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Artwork Square
-                                  Container(
-                                    height: 130,
-                                    width: 130,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white10,
-                                      borderRadius: BorderRadius.circular(12),
-                                      image: song.albumArt.isNotEmpty
-                                          ? DecorationImage(
-                                              image: NetworkImage(song.albumArt),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : null,
-                                    ),
-                                    child: song.albumArt.isEmpty
-                                        ? const Icon(Icons.music_note, color: Colors.white54, size: 40)
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 190, 
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      itemCount: songs.length,
+                      itemBuilder: (context, horizontalIndex) {
+                        final song = songs[horizontalIndex];
+                        
+                        return GestureDetector(
+                          onTap: () {
+                            // 3. THIS IS THE CRITICAL FIX: Save the ghost record to Isar!
+                            ref.read(historyControllerProvider.notifier).addSongToHistory(song);
+                            
+                            ref.read(playerControllerProvider.notifier).playQueue(songs, horizontalIndex);
+                          },
+                          onLongPress: () {
+                            ref.read(collectionControllerProvider.notifier).addStreamShortcut(song);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Saved ${song.title} to Collection 🔗"),
+                                backgroundColor: Colors.teal.shade800,
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 130,
+                            margin: const EdgeInsets.symmetric(horizontal: 6.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  height: 130,
+                                  width: 130,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white10,
+                                    borderRadius: BorderRadius.circular(12),
+                                    image: song.albumArt.isNotEmpty
+                                        ? DecorationImage(
+                                            image: NetworkImage(song.albumArt),
+                                            fit: BoxFit.cover,
+                                          )
                                         : null,
                                   ),
-                                  const SizedBox(height: 8),
-                                  // Title
-                                  Text(
-                                    song.title,
-                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  // Artist
-                                  Text(
-                                    song.artist,
-                                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
+                                  child: song.albumArt.isEmpty
+                                      ? const Icon(Icons.music_note, color: Colors.white54, size: 40)
+                                      : null,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  song.title,
+                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  song.artist,
+                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
