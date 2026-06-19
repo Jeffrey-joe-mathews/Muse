@@ -1,8 +1,11 @@
-import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
-import 'package:muse_local_db/src/models/radio_preset_entity.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import '../models/song_entity.dart';
+
+// schema path
+import 'package:muse_local_db/src/models/song_entity.dart';
+import 'package:muse_local_db/src/models/radio_preset_entity.dart';
+import 'package:muse_local_db/src/models/folder_entity.dart';
 
 class DatabaseService {
   late Future<Isar> db;
@@ -17,6 +20,7 @@ class DatabaseService {
       final isar = await Isar.open(
         [
           SongEntitySchema,
+          FolderEntitySchema,
           RadioPresetEntitySchema
         ],
         directory: dir.path,
@@ -29,10 +33,16 @@ class DatabaseService {
     return Future.value(Isar.getInstance());
   }
 
-  Future<void> saveSong(SongEntity song) async {
+// SONG METHODS
+
+  Future<void> saveSong(SongEntity song, {FolderEntity? parentFolder}) async {
     final isar = await db;
     await isar.writeTxn(() async {
       await isar.songEntitys.put(song);
+      if (parentFolder != null) {
+        song.parentFolder.value = parentFolder;
+        await song.parentFolder.save();
+      }
     });
   }
 
@@ -45,6 +55,80 @@ class DatabaseService {
     final isar = await db;
     return await isar.songEntitys.filter().filePathEqualTo(path).findFirst();
   }
+
+  Future<void> deleteSongByPath(List<String> paths) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      for (String path in paths) {
+        final ghost = await isar.songEntitys.filter().filePathEqualTo(path).findFirst();
+        if (ghost != null) {
+          await isar.songEntitys.delete(ghost.id);
+        }
+      }
+    });
+  } 
+
+  Future<List<SongEntity>> searchSongs(String query) async {
+    final isar = await db;
+    return await isar.songEntitys
+      .filter()
+      .group((q) => q
+        .titleContains(query, caseSensitive: false)
+        .or()
+        .artistContains(query, caseSensitive: false))
+      .limit(50)
+      .findAll();
+  }
+
+  Future<List<SongEntity>> searchLocalSongs(String query) async {
+    final isar = await db;
+    return await isar.songEntitys
+      .filter()
+      .sourceContains("local")
+      .and()
+      .group((q) => q
+        .titleContains(query, caseSensitive: false)
+        .or()
+        .artistContains(query, caseSensitive: false))
+      .limit(50)
+      .findAll();
+  }
+
+// FOLDER METHODS
+
+  Future<void> saveFolder(FolderEntity folder, {FolderEntity? parentFolder}) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.folderEntitys.put(folder);
+      if (parentFolder != null) {
+        folder.parentFolder.value = parentFolder;
+        await  folder.parentFolder.save();
+      }
+    });
+  }
+
+  Future<FolderEntity?> getFolderById(String FodlerId) async {
+    final isar = await db;
+    return await isar.folderEntitys.filter().folderIdEqualTo(FodlerId).findFirst();
+  }
+
+  Future<List<FolderEntity>> getAllFolders() async {
+    final isar = await db;
+    return await isar.folderEntitys.where().findAll();
+  }
+
+  Future<void> deleteFolderById(String folderId) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final folder = await isar.folderEntitys.filter().folderIdEqualTo(folderId).findFirst();
+      if (folder != null) {
+        await isar.folderEntitys.delete(folder.id);
+      }
+    });
+  }
+
+
+
 
   Future<List<SongEntity>> getRecentHistory() async {
     final isar = await db;
@@ -81,7 +165,7 @@ class DatabaseService {
   }
 
   Future<void> _runGarbageCollector(Isar isar) async {
-    // Define the TTL (Time To Live). Adjust this to whatever you want.
+    // Define the TTL (Time To Live). 
     final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
 
     await isar.writeTxn(() async {

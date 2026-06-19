@@ -2,8 +2,8 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:muse/features/library/controllers/collection_controller.dart';
 import 'package:muse_local_db/muse_local_db.dart';
-import '../../library/controllers/collection_controller.dart'; 
 import '../../../models/song.dart';
 
 final historyControllerProvider = StateNotifierProvider<HistoryController, List<Song>>((ref) {
@@ -29,6 +29,7 @@ class HistoryController extends StateNotifier<List<Song>> {
         case 'youtube': return SongSource.youtube;
         case 'audius': return SongSource.audius;
         case 'archive': return SongSource.archive;
+        case 'radio': return SongSource.radio;
         default: return SongSource.local;
       }
     }

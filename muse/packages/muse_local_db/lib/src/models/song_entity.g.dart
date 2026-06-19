@@ -68,8 +68,29 @@ const SongEntitySchema = CollectionSchema(
   deserialize: _songEntityDeserialize,
   deserializeProp: _songEntityDeserializeProp,
   idName: r'id',
-  indexes: {},
-  links: {},
+  indexes: {
+    r'filePath': IndexSchema(
+      id: 2918041768256347220,
+      name: r'filePath',
+      unique: true,
+      replace: true,
+      properties: [
+        IndexPropertySchema(
+          name: r'filePath',
+          type: IndexType.hash,
+          caseSensitive: true,
+        )
+      ],
+    )
+  },
+  links: {
+    r'parentFolder': LinkSchema(
+      id: 9070393303092144928,
+      name: r'parentFolder',
+      target: r'FolderEntity',
+      single: true,
+    )
+  },
   embeddedSchemas: {},
   getId: _songEntityGetId,
   getLinks: _songEntityGetLinks,
@@ -175,11 +196,68 @@ Id _songEntityGetId(SongEntity object) {
 }
 
 List<IsarLinkBase<dynamic>> _songEntityGetLinks(SongEntity object) {
-  return [];
+  return [object.parentFolder];
 }
 
 void _songEntityAttach(IsarCollection<dynamic> col, Id id, SongEntity object) {
   object.id = id;
+  object.parentFolder
+      .attach(col, col.isar.collection<FolderEntity>(), r'parentFolder', id);
+}
+
+extension SongEntityByIndex on IsarCollection<SongEntity> {
+  Future<SongEntity?> getByFilePath(String filePath) {
+    return getByIndex(r'filePath', [filePath]);
+  }
+
+  SongEntity? getByFilePathSync(String filePath) {
+    return getByIndexSync(r'filePath', [filePath]);
+  }
+
+  Future<bool> deleteByFilePath(String filePath) {
+    return deleteByIndex(r'filePath', [filePath]);
+  }
+
+  bool deleteByFilePathSync(String filePath) {
+    return deleteByIndexSync(r'filePath', [filePath]);
+  }
+
+  Future<List<SongEntity?>> getAllByFilePath(List<String> filePathValues) {
+    final values = filePathValues.map((e) => [e]).toList();
+    return getAllByIndex(r'filePath', values);
+  }
+
+  List<SongEntity?> getAllByFilePathSync(List<String> filePathValues) {
+    final values = filePathValues.map((e) => [e]).toList();
+    return getAllByIndexSync(r'filePath', values);
+  }
+
+  Future<int> deleteAllByFilePath(List<String> filePathValues) {
+    final values = filePathValues.map((e) => [e]).toList();
+    return deleteAllByIndex(r'filePath', values);
+  }
+
+  int deleteAllByFilePathSync(List<String> filePathValues) {
+    final values = filePathValues.map((e) => [e]).toList();
+    return deleteAllByIndexSync(r'filePath', values);
+  }
+
+  Future<Id> putByFilePath(SongEntity object) {
+    return putByIndex(r'filePath', object);
+  }
+
+  Id putByFilePathSync(SongEntity object, {bool saveLinks = true}) {
+    return putByIndexSync(r'filePath', object, saveLinks: saveLinks);
+  }
+
+  Future<List<Id>> putAllByFilePath(List<SongEntity> objects) {
+    return putAllByIndex(r'filePath', objects);
+  }
+
+  List<Id> putAllByFilePathSync(List<SongEntity> objects,
+      {bool saveLinks = true}) {
+    return putAllByIndexSync(r'filePath', objects, saveLinks: saveLinks);
+  }
 }
 
 extension SongEntityQueryWhereSort
@@ -255,6 +333,51 @@ extension SongEntityQueryWhere
         upper: upperId,
         includeUpper: includeUpper,
       ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterWhereClause> filePathEqualTo(
+      String filePath) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'filePath',
+        value: [filePath],
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterWhereClause> filePathNotEqualTo(
+      String filePath) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'filePath',
+              lower: [],
+              upper: [filePath],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'filePath',
+              lower: [filePath],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'filePath',
+              lower: [filePath],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'filePath',
+              lower: [],
+              upper: [filePath],
+              includeUpper: false,
+            ));
+      }
     });
   }
 }
@@ -1369,7 +1492,21 @@ extension SongEntityQueryObject
     on QueryBuilder<SongEntity, SongEntity, QFilterCondition> {}
 
 extension SongEntityQueryLinks
-    on QueryBuilder<SongEntity, SongEntity, QFilterCondition> {}
+    on QueryBuilder<SongEntity, SongEntity, QFilterCondition> {
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition> parentFolder(
+      FilterQuery<FolderEntity> q) {
+    return QueryBuilder.apply(this, (query) {
+      return query.link(q, r'parentFolder');
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      parentFolderIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(r'parentFolder', 0, true, 0, true);
+    });
+  }
+}
 
 extension SongEntityQuerySortBy
     on QueryBuilder<SongEntity, SongEntity, QSortBy> {

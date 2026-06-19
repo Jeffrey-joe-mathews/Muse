@@ -31,7 +31,7 @@ class RadioProvider implements MusicProvider {
             artist: "Live FM • ${station['tags'].toString().split(',').first}", // Grab primary genre
             albumArt: station['favicon'] ?? '',
             audioURL: station['url_resolved'], // The actual live stream URL!
-            source: SongSource.archive, // We can map this to archive or create a new SongSource.radio
+            source: SongSource.radio,
           );
         }).toList();
       }

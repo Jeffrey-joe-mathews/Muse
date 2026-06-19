@@ -499,6 +499,10 @@ class _SourceBadge extends StatelessWidget {
         badgeColor = Colors.blueGrey;
         label = "ARC";
         break;
+      case SongSource.radio:
+        badgeColor = Colors.greenAccent;
+        label = "LIVE";
+        break;
     }
 
     return Container(

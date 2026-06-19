@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:muse/providers/archive/archive_provider.dart';
 import 'package:muse/providers/audius/audius_provider.dart';
 import 'package:muse/providers/jamendo/jamendo_provider.dart';
+import 'package:muse/providers/provider_config.dart';
 import '../../../models/song.dart';
 import '../../../providers/base/music_provider.dart';
 import '../../../providers/youtube/youtube_provider.dart';
@@ -18,13 +19,8 @@ final archiveProviderInstance = Provider((ref) => ArchiveProvider());
 // The State is now a Map connecting the Provider Name to its list of Songs
 final searchControllerProvider =
     StateNotifierProvider<SearchController, AsyncValue<Map<String, List<Song>>>>((ref) {
-  return SearchController([
-    ref.read(soundCloudProviderInstance),
-    ref.read(jamendoProviderInstance),
-    ref.read(audiusProviderInstance),
-    ref.read(archiveProviderInstance),
-    ref.read(youTubeProviderInstance),
-  ]);
+    final activeProviders = ref.read(activeProviderState);
+    return SearchController(activeProviders);
 });
 
 class SearchController extends StateNotifier<AsyncValue<Map<String, List<Song>>>> {

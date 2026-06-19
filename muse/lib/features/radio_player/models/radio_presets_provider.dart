@@ -35,7 +35,7 @@ class RadioPresetsNotifier extends StateNotifier<List<Song?>> {
           artist: "Live FM", 
           albumArt: "", 
           audioURL: "https://ice1.somafm.com/secretagent-128-mp3", 
-          source: SongSource.archive
+          source: SongSource.radio
         ), 
         null, 
         null,
@@ -61,7 +61,7 @@ class RadioPresetsNotifier extends StateNotifier<List<Song?>> {
             artist: entity.artist,
             albumArt: entity.albumArt,
             audioURL: entity.audioURL,
-            source: SongSource.values.firstWhere((e) => e.name == entity.source, orElse: () => SongSource.archive),
+            source: SongSource.values.firstWhere((e) => e.name == entity.source, orElse: () => SongSource.radio),
           );
         }
       }

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:muse/features/library/pages/collection_page.dart';
 import 'dart:ui';
 
 // Pages
 import '../../search/pages/search_page.dart'; 
-import '../../library/pages/collection_page.dart'; 
 import 'package:muse/features/flow/pages/flow_page.dart';
 import 'package:muse/features/player/widgets/orb.dart';
 

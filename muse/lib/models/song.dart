@@ -5,6 +5,7 @@ enum SongSource {
   jamendo,
   soundcloud,
   audius,
+  radio,
 }
 
 class Song {

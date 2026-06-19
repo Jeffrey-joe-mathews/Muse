@@ -7,7 +7,7 @@ import 'package:muse/core/services/storage_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize the background audio OS
+  // initializing the background audio OS
   await JustAudioBackground.init(
     androidNotificationChannelId: 'com.muse.app.channel.audio',
     androidNotificationChannelName: 'Muse Playback',

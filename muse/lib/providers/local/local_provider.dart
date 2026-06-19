@@ -1,4 +1,5 @@
 // lib/providers/local/local_provider.dart
+import 'package:muse_local_db/muse_local_db.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../models/song.dart';
@@ -9,6 +10,7 @@ import '../../core/services/metadata_service.dart';
 class LocalMusicProvider implements MusicProvider {
   final OnAudioQuery _audioQuery = OnAudioQuery();
   final MetadataService _metadataService = MetadataService();
+  final DatabaseService _db = DatabaseService();
 
   @override
   String get sourceName => 'local';
@@ -37,7 +39,7 @@ class LocalMusicProvider implements MusicProvider {
         id: song.id.toString(),
         title: song.title,
         artist: song.artist ?? "Unknown Artist",
-        albumArt: "", // Auto-scans omit artwork to save memory. We fix this later.
+        albumArt: "",
         audioURL: song.data, 
         duration: Duration(milliseconds: song.duration ?? 0),
         source: SongSource.local,
@@ -47,8 +49,21 @@ class LocalMusicProvider implements MusicProvider {
 
   @override
   Future<List<Song>> search(String query) async {
-    // We can implement local device search later
-    return [];
+    final cleanString = query.trim(); 
+    if (cleanString.isEmpty) return [];
+
+    final searchResults = await _db.searchLocalSongs(cleanString);
+
+    return searchResults.map((entity) {
+      return Song(
+        id: entity.networkId ?? entity.id.toString(),
+        title: entity.title,
+        artist: entity.artist,
+        albumArt: entity.albumArtPath, 
+        audioURL: entity.filePath,
+        source: SongSource.local,
+      );
+    }).toList();
   }
 
   @override

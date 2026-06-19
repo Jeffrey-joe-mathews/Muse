@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:muse/features/library/controllers/collection_controller.dart';
+import 'package:muse/features/radio_player/controller/radio_controller.dart';
+import 'package:muse/features/radio_player/pages/radio_listen_page.dart';
 import 'package:muse/features/search/widgets/history_widget.dart';
 import 'package:muse/features/search/widgets/radio_widget.dart';
 import '../controllers/search_controller.dart';
@@ -122,6 +126,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                             // 3. THIS IS THE CRITICAL FIX: Save the ghost record to Isar!
                             ref.read(historyControllerProvider.notifier).addSongToHistory(song);
                             
+                            if (song.source == SongSource.radio) {
+                              ref.read(radioControllerProvider.notifier).tuneToStation(song);
+
+                              showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true, 
+                              useSafeArea: false,
+                              backgroundColor: Colors.transparent, 
+                              builder: (context) => const RadioListenPage(),
+                            );
+                          } else {
+                            ref.read(playerControllerProvider.notifier).playQueue(songs, horizontalIndex);
+                          }
+
                             ref.read(playerControllerProvider.notifier).playQueue(songs, horizontalIndex);
                           },
                           onLongPress: () {
@@ -150,7 +168,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                     borderRadius: BorderRadius.circular(12),
                                     image: song.albumArt.isNotEmpty
                                         ? DecorationImage(
-                                            image: NetworkImage(song.albumArt),
+                                            image: song.albumArt.startsWith("http") ? NetworkImage(song.albumArt) : FileImage(File(song.albumArt)),
                                             fit: BoxFit.cover,
                                           )
                                         : null,
