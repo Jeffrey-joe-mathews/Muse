@@ -1,0 +1,22 @@
+
+
+
+Starting Ablation Run Matrix Profile Strategy: BASELINE_CNN
+------------------------------------------------------------------------
+Epoch [01/15] -> Loss: 0.2083 | LR: 0.000100 | KNN: 67.0% | Sil: 0.451 | mAP@64: 0.597 | Index: 0.5570
+Epoch [02/15] -> Loss: 0.1732 | LR: 0.000099 | KNN: 64.5% | Sil: 0.458 | mAP@64: 0.592 | Index: 0.5533
+Epoch [03/15] -> Loss: 0.1684 | LR: 0.000096 | KNN: 64.5% | Sil: 0.434 | mAP@64: 0.593 | Index: 0.5415
+Epoch [04/15] -> Loss: 0.1800 | LR: 0.000091 | KNN: 66.0% | Sil: 0.468 | mAP@64: 0.596 | Index: 0.5629
+Epoch [05/15] -> Loss: 0.1626 | LR: 0.000084 | KNN: 67.0% | Sil: 0.476 | mAP@64: 0.600 | Index: 0.5705
+Epoch [06/15] -> Loss: 0.1538 | LR: 0.000075 | KNN: 67.5% | Sil: 0.471 | mAP@64: 0.593 | Index: 0.5667
+Epoch [07/15] -> Loss: 0.1499 | LR: 0.000066 | KNN: 67.0% | Sil: 0.475 | mAP@64: 0.603 | Index: 0.5708
+Epoch [08/15] -> Loss: 0.1557 | LR: 0.000056 | KNN: 69.0% | Sil: 0.483 | mAP@64: 0.584 | Index: 0.5735
+Epoch [09/15] -> Loss: 0.1552 | LR: 0.000045 | KNN: 67.5% | Sil: 0.485 | mAP@64: 0.588 | Index: 0.5721
+Epoch [10/15] -> Loss: 0.1468 | LR: 0.000035 | KNN: 67.5% | Sil: 0.483 | mAP@64: 0.595 | Index: 0.5734
+Epoch [11/15] -> Loss: 0.1604 | LR: 0.000026 | KNN: 69.5% | Sil: 0.486 | mAP@64: 0.610 | Index: 0.5840
+Epoch [12/15] -> Loss: 0.1467 | LR: 0.000017 | KNN: 67.5% | Sil: 0.490 | mAP@64: 0.606 | Index: 0.5798
+Epoch [13/15] -> Loss: 0.1555 | LR: 0.000010 | KNN: 69.0% | Sil: 0.491 | mAP@64: 0.610 | Index: 0.5854
+Epoch [14/15] -> Loss: 0.1444 | LR: 0.000005 | KNN: 69.0% | Sil: 0.491 | mAP@64: 0.606 | Index: 0.5841
+Epoch [15/15] -> Loss: 0.1547 | LR: 0.000002 | KNN: 69.0% | Sil: 0.492 | mAP@64: 0.605 | Index: 0.5840
+
+Execution Complete. Weights artifact successfully generated and cached

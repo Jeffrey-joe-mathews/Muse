@@ -1,0 +1,28 @@
+
+
+/usr/local/lib/python3.12/dist-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+
+
+Starting Ablation Run Matrix Profile Strategy: EFFICIENTNET_B0
+------------------------------------------------------------------------
+Epoch [01/15] -> Loss: 0.2865 | LR: 0.000100 | KNN: 10.0% | Sil: 0.266 | mAP@64: 0.188 | Index: 0.1572
+Epoch [02/15] -> Loss: 0.2582 | LR: 0.000099 | KNN: 44.0% | Sil: 0.328 | mAP@64: 0.339 | Index: 0.3627
+Epoch [03/15] -> Loss: 0.2642 | LR: 0.000096 | KNN: 47.5% | Sil: 0.380 | mAP@64: 0.371 | Index: 0.4035
+Epoch [04/15] -> Loss: 0.2620 | LR: 0.000091 | KNN: 49.5% | Sil: 0.387 | mAP@64: 0.386 | Index: 0.4169
+Epoch [05/15] -> Loss: 0.2370 | LR: 0.000084 | KNN: 52.0% | Sil: 0.383 | mAP@64: 0.389 | Index: 0.4221
+Epoch [06/15] -> Loss: 0.2430 | LR: 0.000075 | KNN: 47.0% | Sil: 0.389 | mAP@64: 0.361 | Index: 0.4020
+Epoch [07/15] -> Loss: 0.2324 | LR: 0.000066 | KNN: 51.0% | Sil: 0.382 | mAP@64: 0.373 | Index: 0.4131
+Epoch [08/15] -> Loss: 0.2347 | LR: 0.000056 | KNN: 50.5% | Sil: 0.405 | mAP@64: 0.406 | Index: 0.4341
+Epoch [09/15] -> Loss: 0.2179 | LR: 0.000045 | KNN: 49.0% | Sil: 0.387 | mAP@64: 0.424 | Index: 0.4294
+Epoch [10/15] -> Loss: 0.2311 | LR: 0.000035 | KNN: 52.0% | Sil: 0.397 | mAP@64: 0.432 | Index: 0.4440
+Epoch [11/15] -> Loss: 0.1974 | LR: 0.000026 | KNN: 52.5% | Sil: 0.403 | mAP@64: 0.428 | Index: 0.4463
+Epoch [12/15] -> Loss: 0.2199 | LR: 0.000017 | KNN: 55.0% | Sil: 0.406 | mAP@64: 0.460 | Index: 0.4646
+Epoch [13/15] -> Loss: 0.2042 | LR: 0.000010 | KNN: 54.5% | Sil: 0.407 | mAP@64: 0.438 | Index: 0.4562
+Epoch [14/15] -> Loss: 0.2073 | LR: 0.000005 | KNN: 55.0% | Sil: 0.404 | mAP@64: 0.435 | Index: 0.4552
+Epoch [15/15] -> Loss: 0.1797 | LR: 0.000002 | KNN: 57.0% | Sil: 0.402 | mAP@64: 0.432 | Index: 0.4576
+
+Execution Complete. Weights artifact successfully generated and cached.
+

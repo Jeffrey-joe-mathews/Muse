@@ -1,0 +1,5 @@
+batchsize of 16 and no ALR showed a bumpy path with values consistently fluctuating...
+
+with ALR we have somewhat tamed the noise and made it less bumpy
+
+batchsize of 64 should fix the triplet starvation and help make better overall predictions.
