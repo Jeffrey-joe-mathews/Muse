@@ -6,7 +6,9 @@ import 'package:muse/features/library/controllers/collection_controller.dart';
 import 'package:muse/features/radio_player/controller/radio_controller.dart';
 import 'package:muse/features/radio_player/pages/radio_listen_page.dart';
 import 'package:muse/features/search/widgets/history_widget.dart';
+import 'package:muse/features/search/widgets/provider_beads_widget.dart';
 import 'package:muse/features/search/widgets/radio_widget.dart';
+import 'package:muse/features/search/widgets/vault_pulse_widget.dart';
 import '../controllers/search_controller.dart';
 import '../controllers/history_controller.dart';
 import '../../player/controllers/player_controller.dart';
@@ -38,44 +40,78 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.dispose();
   }
 
+
   @override
   Widget build(BuildContext context) {
     final searchState = ref.watch(searchControllerProvider);
+    
+    final resultsMap = searchState.value ?? {};
+    final isSearchActive = _searchFocusNode.hasFocus || resultsMap.isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        title: TextField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: "Search SoundCloud, YouTube, etc...",
-            hintStyle: const TextStyle(color: Colors.white54),
-            border: InputBorder.none,
-            prefixIcon: const Icon(Icons.search, color: Colors.white54),
-            suffixIcon: _searchFocusNode.hasFocus || _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white54),
-                    onPressed: () {
-                      _searchController.clear();
-                      _searchFocusNode.unfocus();
-                    },
-                  )
-                : null,
+    return PopScope(
+      canPop: !isSearchActive, // Only allow system pop if we are fully idle
+      onPopInvoked: (didPop) {
+        if (didPop) return; // The system already popped (we were idle)
+        
+        // INTERCEPTED: Virtual Back Navigation
+        _searchFocusNode.unfocus();
+        ref.read(searchControllerProvider.notifier).clearSearch();
+        // Notice we DO NOT clear _searchController.text here!
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          title: TextField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: "Search SoundCloud, YouTube, etc...",
+              hintStyle: const TextStyle(color: Colors.white54),
+              border: InputBorder.none,
+              
+              // 3. THE DYNAMIC PREFIX ICON
+              prefixIcon: isSearchActive
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () {
+                        _searchFocusNode.unfocus();
+                        ref.read(searchControllerProvider.notifier).clearSearch();
+                      },
+                    )
+                  : const Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: Icon(Icons.search, color: Colors.white54),
+                    ),
+                    
+              // 4. THE CLEAR BUTTON (Suffix)
+              suffixIcon: _searchFocusNode.hasFocus || _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white54),
+                      onPressed: () {
+                        _searchController.clear();
+                        _searchFocusNode.unfocus();
+                        // If they hit the 'X', we also clear the results
+                        ref.read(searchControllerProvider.notifier).clearSearch(); 
+                      },
+                    )
+                  : null,
+            ),
+            onSubmitted: (query) {
+              final activeFilters = ref.read(activeSearchFiltersProvider);
+              ref.read(searchControllerProvider.notifier)
+                  .searchMusic(query, activeFilters: activeFilters);
+              _searchFocusNode.unfocus(); 
+            },
           ),
-          onSubmitted: (query) {
-            ref.read(searchControllerProvider.notifier).searchMusic(query);
-            _searchFocusNode.unfocus(); 
-          },
         ),
+        
+        // Keep your exact body logic here!
+        body: _searchFocusNode.hasFocus 
+            ? SearchHistoryWidget(searchFocusNode: _searchFocusNode) 
+            : _buildSearchResults(searchState),
       ),
-      
-      // 2. USE THE MODULAR WIDGET HERE
-      body: _searchFocusNode.hasFocus 
-          ? SearchHistoryWidget(searchFocusNode: _searchFocusNode) 
-          : _buildSearchResults(searchState),
     );
   }
 
@@ -88,7 +124,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           return const Column(
             children: [
               SizedBox(height: 20),
+              ProviderBeadsWidget(),
+              SizedBox(height: 20),
               RadioDashboardWidget(), 
+              SizedBox(height: 20),
+              VaultPulseWidget(),
             ],
           );
         }

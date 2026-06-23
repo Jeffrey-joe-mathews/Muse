@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:muse/features/library/pages/collection_page.dart';
+import 'package:muse/features/radio_player/pages/radio_dashboard_page.dart';
 import 'dart:ui';
 
 // Pages
 import '../../search/pages/search_page.dart'; 
-import 'package:muse/features/flow/pages/flow_page.dart';
 import 'package:muse/features/player/widgets/orb.dart';
+import 'package:muse/features/flow/pages/flow_page.dart';
+import 'package:muse/features/library/pages/collection_page.dart';
 
 final navIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -22,7 +23,7 @@ class RootPage extends ConsumerWidget {
       const FlowPage(),
       const SearchPage(), 
       const CollectionPage(),
-      const Scaffold(body: Center(child: Text("Intelligence / AI"))), // Placeholder
+      const RadioDashboardPage(),
     ];
 
     return Scaffold(

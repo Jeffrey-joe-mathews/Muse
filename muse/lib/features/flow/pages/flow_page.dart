@@ -1,11 +1,11 @@
 import 'dart:io';
-import 'dart:ui';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../player/controllers/player_controller.dart';
 import '../../../models/song.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/primitives/muse_glass.dart'; 
 
 class FlowPage extends ConsumerStatefulWidget {
   const FlowPage({super.key});
@@ -14,260 +14,157 @@ class FlowPage extends ConsumerStatefulWidget {
   ConsumerState<FlowPage> createState() => _FlowPageState();
 }
 
-class _FlowPageState extends ConsumerState<FlowPage> with SingleTickerProviderStateMixin {
-  late AnimationController _breathController;
+class _FlowPageState extends ConsumerState<FlowPage> {
 
-  @override
-  void initState() {
-    super.initState();
-    // A slow, 8-second breathing animation for the background aura
-    _breathController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat(reverse: true);
-  }
+  String _calculateQueueRuntime(List<Song> queue) {
+    Duration total = Duration.zero;
+    for (final song in queue) {
+      if (song.duration != null) {
+        total += song.duration!;
+      }
+    }
+    if (total == Duration.zero) return "Runtime Unknown";
 
-  @override
-  void dispose() {
-    _breathController.dispose();
-    super.dispose();
+    final hours = total.inHours;
+    final minutes = total.inMinutes.remainder(60);
+    
+    return hours > 0 ? "$hours hr $minutes min" : "$minutes min";
   }
 
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerControllerProvider);
-    
-    // FIX: Removed the dead null-aware operators.
     final queue = playerState.queue; 
     final currentIndex = playerState.currentIndex;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        children: [
-          // --- 1. THE "MIND" BACKGROUND AURA ---
-          AnimatedBuilder(
-            animation: _breathController,
-            builder: (context, child) {
-              return Positioned(
-                top: -100 + (_breathController.value * 20), // Slowly drifts up and down
-                right: -50,
-                child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        AppColors.primary.withValues(alpha: 0.15),
-                        Colors.transparent,
-                      ],
+      backgroundColor: AppColors.background, // Standardized Baseline
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 40, 24, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "The Flow",
+                      style: TextStyle(
+                        color: AppColors.pureWhite,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1.0,
+                      ),
                     ),
-                  ),
+                    Text(
+                      "v1.0 // SESSION",
+                      style: TextStyle(
+                        color: AppColors.glassTextMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                  ],
                 ),
-              );
-            },
-          ),
-          
-          // --- FROSTED GLASS OVER THE AURA ---
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-            child: Container(color: Colors.transparent),
-          ),
+              ),
+            ),
 
-          // --- 2. THE DASHBOARD ---
-          SafeArea(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                // HEADER
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            if (queue.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                  child: MuseGlass(
+                    borderRadius: 12.0,
+                    blurSigma: 20.0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          "The Flow",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.0,
-                          ),
+                        Row(
+                          children: [
+                            Icon(Icons.layers_rounded, size: 14, color: AppColors.glassTextMuted),
+                            const SizedBox(width: 8),
+                            Text(
+                              "${queue.length} TRACKS",
+                              style: TextStyle(
+                                color: AppColors.glassTextMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 6),
                         Text(
-                          queue.isEmpty 
-                              ? "Your session is empty." 
-                              : "Active Session • ${queue.length} Tracks",
+                          _calculateQueueRuntime(queue),
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
+                            color: AppColors.glassTextMuted,
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
+              ),
 
-                // AI SESSION CONTEXT
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.elevatedSurface.withValues(alpha: 0.7),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.05),
-                            blurRadius: 20,
-                            offset: const Offset(0, 4),
-                          )
-                        ]
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+            if (queue.isEmpty)
+              SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.queue_music_rounded, size: 48, color: AppColors.glassTextMuted),
+                      const SizedBox(height: 16),
+                      Text(
+                        "No tracks loaded into playback.",
+                        style: TextStyle(color: AppColors.glassTextMuted, fontSize: 14),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  "Session Insight",
-                                  style: TextStyle(
-                                    color: AppColors.primary, 
-                                    fontSize: 12, 
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.0,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  "You've been listening to high-BPM Synthwave and Cyberpunk mixes for 45 minutes. Your focus is peaking.",
-                                  style: TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
                 ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.only(left: 20, right: 20, bottom: 120),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final song = queue[index];
+                      final isPlaying = index == currentIndex;
 
-                // QUICK TRANSITIONS
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 16.0, bottom: 24.0),
-                    child: SizedBox(
-                      height: 40,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        children: const [
-                          _TransitionChip(icon: Icons.water_drop_rounded, label: "Pivot to Lofi"),
-                          _TransitionChip(icon: Icons.speed_rounded, label: "Drop the BPM"),
-                          _TransitionChip(icon: Icons.nightlight_round, label: "Go Ambient"),
-                          _TransitionChip(icon: Icons.mic_rounded, label: "Add Vocals"),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // THE ACTIVE QUEUE
-                if (queue.isEmpty)
-                  const SliverFillRemaining(
-                    child: Center(
-                      child: Text(
-                        "Tap 'Explore' or 'Collection' to start the flow.",
-                        style: TextStyle(color: Colors.white54),
-                      ),
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.only(left: 20, right: 20, bottom: 100),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final song = queue[index];
-                          final isPlaying = index == currentIndex;
-
-                          return _QueueTile(
-                            song: song,
-                            isPlaying: isPlaying,
-                            onTap: () {
-                              ref.read(playerControllerProvider.notifier).playQueue(queue, index);
-                            },
-                            onDismissed: () {
-                              ref.read(playerControllerProvider.notifier).removeFromQueue(index);
-                            },
-                          );
+                      return _QueueTile(
+                        song: song,
+                        isPlaying: isPlaying,
+                        onTap: () {
+                          ref.read(playerControllerProvider.notifier).playQueue(queue, index);
                         },
-                        childCount: queue.length,
-                      ),
-                    ),
+                        onDismissed: () {
+                          ref.read(playerControllerProvider.notifier).removeFromQueue(index);
+                        },
+                      );
+                    },
+                    childCount: queue.length,
                   ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// --- TRANSITION CHIP WIDGET ---
-class _TransitionChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _TransitionChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(right: 12),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => debugPrint("Trigger AI Pivot: $label"),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white70, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
-              ],
-            ),
-          ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-// --- SWIPEABLE QUEUE TILE ---
 class _QueueTile extends StatelessWidget {
   final Song song;
   final bool isPlaying;
@@ -292,31 +189,31 @@ class _QueueTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         alignment: Alignment.centerRight,
         decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.8),
+          color: AppColors.glassShell, // Standardized
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+        child: const Icon(Icons.delete_outline_rounded, color: AppColors.pureWhite),
       ),
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.only(bottom: 12),
+          duration: const Duration(milliseconds: 250),
+          margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: isPlaying ? Colors.white.withValues(alpha: 0.08) : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            border: isPlaying ? Border.all(color: Colors.white.withValues(alpha: 0.1)) : null,
+            color: isPlaying ? AppColors.glassShell : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: isPlaying ? Border.all(color: AppColors.glassBorder) : null,
           ),
           child: Row(
             children: [
               // ALBUM ART
               Container(
-                width: 50,
-                height: 50,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
-                  color: Colors.white10,
+                  color: AppColors.glassShell,
                   borderRadius: BorderRadius.circular(10),
                   image: song.albumArt.isNotEmpty
                       ? DecorationImage(
@@ -328,10 +225,10 @@ class _QueueTile extends StatelessWidget {
                       : null,
                 ),
                 child: song.albumArt.isEmpty
-                    ? const Icon(Icons.music_note_rounded, color: Colors.white30, size: 20)
+                    ? Icon(Icons.music_note_rounded, color: AppColors.glassTextMuted, size: 20)
                     : null,
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
 
               // TRACK INFO
               Expanded(
@@ -341,14 +238,14 @@ class _QueueTile extends StatelessWidget {
                     Text(
                       song.title,
                       style: TextStyle(
-                        color: isPlaying ? AppColors.primary : Colors.white,
-                        fontSize: 15,
+                        color: AppColors.pureWhite,
+                        fontSize: 14,
                         fontWeight: isPlaying ? FontWeight.bold : FontWeight.w600,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         _SourceBadge(source: song.source),
@@ -356,7 +253,7 @@ class _QueueTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             song.artist,
-                            style: const TextStyle(color: Colors.white54, fontSize: 13),
+                            style: TextStyle(color: AppColors.glassTextMuted, fontSize: 12),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -367,16 +264,15 @@ class _QueueTile extends StatelessWidget {
                 ),
               ),
 
-              // DYNAMIC PLAYING INDICATOR
               if (isPlaying)
                 const Padding(
                   padding: EdgeInsets.only(left: 16.0),
                   child: _AnimatedPlayingIndicator(),
                 )
               else
-                const Padding(
-                  padding: EdgeInsets.only(left: 16.0),
-                  child: Icon(Icons.more_vert_rounded, color: Colors.white24, size: 20), 
+                Padding(
+                  padding: const EdgeInsets.only(left: 16.0),
+                  child: Icon(Icons.more_vert_rounded, color: AppColors.glassTextMuted, size: 18), 
                 ),
             ],
           ),
@@ -386,7 +282,6 @@ class _QueueTile extends StatelessWidget {
   }
 }
 
-// --- TRUE ANIMATED EQUALIZER ---
 class _AnimatedPlayingIndicator extends StatefulWidget {
   const _AnimatedPlayingIndicator();
 
@@ -402,7 +297,7 @@ class _AnimatedPlayingIndicatorState extends State<_AnimatedPlayingIndicator> wi
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4000),
+      duration: const Duration(milliseconds: 3500),
     )..repeat();
   }
 
@@ -415,13 +310,12 @@ class _AnimatedPlayingIndicatorState extends State<_AnimatedPlayingIndicator> wi
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 20,
-      height: 20,
+      width: 16,
+      height: 16,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // The offsets shift the sine wave so they don't all bounce together
           _EqBar(animation: _controller, offset: 0.0),
           _EqBar(animation: _controller, offset: 2.0), 
           _EqBar(animation: _controller, offset: 4.0),
@@ -432,7 +326,6 @@ class _AnimatedPlayingIndicatorState extends State<_AnimatedPlayingIndicator> wi
   }
 }
 
-// --- INDIVIDUAL EQUALIZER BAR ---
 class _EqBar extends StatelessWidget {
   final Animation<double> animation;
   final double offset;
@@ -444,18 +337,15 @@ class _EqBar extends StatelessWidget {
     return AnimatedBuilder(
       animation: animation,
       builder: (context, child) {
-        // Calculate the sine wave position
         final sineValue = math.sin((animation.value * 2 * math.pi) + offset);
-        
-        // Map the sine wave from [-1, 1] to a height percentage between 30% and 100%
         final heightPercent = 0.3 + (sineValue.abs() * 0.7);
 
         return Container(
-          width: 3.5,
-          height: 22 * heightPercent,
+          width: 2.5,
+          height: 16 * heightPercent,
           decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(4), // Rounded pill look
+            color: AppColors.pureWhite, // Standardized
+            borderRadius: BorderRadius.circular(4),
           ),
         );
       },
@@ -463,7 +353,6 @@ class _EqBar extends StatelessWidget {
   }
 }
 
-// --- DYNAMIC SOURCE BADGE ---
 class _SourceBadge extends StatelessWidget {
   final SongSource source;
 
@@ -471,54 +360,26 @@ class _SourceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color badgeColor;
-    String label;
-
-    switch (source) {
-      case SongSource.soundcloud:
-        badgeColor = Colors.orange;
-        label = "SC";
-        break;
-      case SongSource.jamendo:
-        badgeColor = Colors.purpleAccent;
-        label = "JM";
-        break;
-      case SongSource.local:
-        badgeColor = AppColors.primary;
-        label = "Local";
-        break;
-      case SongSource.youtube:
-        badgeColor = Colors.red;
-        label = "YT";
-        break;
-      case SongSource.audius:
-        badgeColor = Colors.deepPurpleAccent;
-        label = "AU";
-        break;
-      case SongSource.archive:
-        badgeColor = Colors.blueGrey;
-        label = "ARC";
-        break;
-      case SongSource.radio:
-        badgeColor = Colors.greenAccent;
-        label = "LIVE";
-        break;
-    }
+    String label = source.name.toUpperCase();
+    if (source == SongSource.soundcloud) label = "SC";
+    if (source == SongSource.youtube) label = "YT";
+    if (source == SongSource.jamendo) label = "JM";
+    if (source == SongSource.archive) label = "ARC";
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.15),
+        color: AppColors.glassShell,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+        border: Border.all(color: AppColors.glassBorder),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: badgeColor,
-          fontSize: 9,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
+          color: AppColors.glassTextMuted,
+          fontSize: 8,
+          fontFamily: 'monospace',
+          fontWeight: FontWeight.w800,
         ),
       ),
     );

@@ -13,7 +13,7 @@ class LocalMusicProvider implements MusicProvider {
   final DatabaseService _db = DatabaseService();
 
   @override
-  String get sourceName => 'local';
+  String get sourceName => 'Local';
 
   Future<bool> requestPermissions() async {
     var status = await Permission.audio.request();

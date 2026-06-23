@@ -27,8 +27,9 @@ class SearchController extends StateNotifier<AsyncValue<Map<String, List<Song>>>
   final List<MusicProvider> _providers;
 
   SearchController(this._providers) : super(const AsyncValue.data({}));
+  List<String> get avilableSourceNames => _providers.map((p) => p.sourceName).toList();
 
-  Future<void> searchMusic(String query) async {
+  Future<void> searchMusic(String query, {Set<String>? activeFilters}) async {
     if (query.trim().isEmpty) return;
     
     state = const AsyncValue.loading();
@@ -36,8 +37,11 @@ class SearchController extends StateNotifier<AsyncValue<Map<String, List<Song>>>
     try {
       Map<String, List<Song>> combinedResults = {};
 
-      // Fire off all searches to all networks concurrently!
-      final searchFutures = _providers.map((provider) async {
+      final providersToSearch = activeFilters != null
+          ? _providers.where((p) => activeFilters.contains(p.sourceName)).toList()
+          : _providers;
+
+      final searchFutures = providersToSearch.map((provider) async {
         final results = await provider.search(query);
         return MapEntry(provider.sourceName, results);
       });
@@ -56,5 +60,9 @@ class SearchController extends StateNotifier<AsyncValue<Map<String, List<Song>>>
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
     }
+  }
+
+  void clearSearch() {
+    state = const AsyncValue.data({});
   }
 }

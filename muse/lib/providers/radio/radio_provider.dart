@@ -5,7 +5,7 @@ import '../base/music_provider.dart';
 
 class RadioProvider implements MusicProvider {
   @override
-  String get sourceName => 'RadioBrowser';
+  String get sourceName => 'Radio';
 
   // We use one of the round-robin DNS servers for the open database
   final String _baseUrl = 'https://de1.api.radio-browser.info/json/stations/search';

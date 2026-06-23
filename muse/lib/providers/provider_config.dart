@@ -7,7 +7,7 @@ import 'package:muse/providers/local/local_provider.dart';
 import 'package:muse/providers/radio/radio_provider.dart';
 import 'package:muse/providers/soundcloud/soundcloud_provider.dart';
 
-const bool isPlayStoreMode = true;
+const bool isPlayStoreMode = false;
 
 final activeProviderState = Provider<List<MusicProvider>>((ref) {
   if (isPlayStoreMode) {
