@@ -116,6 +116,29 @@ class PlayerController extends StateNotifier<PlayerStateModel> {
     );
   }
 
+  void reorderQueue(int index1, int index2) {
+    if (index1 < index2) {
+      index2 -= 1;
+    }
+
+    final newQueue = List<Song>.from(state.queue);
+    final movedSong = newQueue.removeAt(index1);
+
+    newQueue.insert(index2, movedSong);
+
+    int newcurrentIndex = state.currentIndex;
+
+    if (index1 == state.currentIndex) {
+      newcurrentIndex = index2;
+    } else if (index1 < state.currentIndex && index2 >= state.currentIndex) {
+      newcurrentIndex -= 1;
+    } else if (index1 > state.currentIndex && index2 <= state.currentIndex) {
+      newcurrentIndex += 1;
+    }
+
+    state = state.copyWith(queue: newQueue, currentIndex: newcurrentIndex);
+  }
+
   // PAUSE / RESUME
   Future<void> pauseOrResume() async {
     if (state.isPlaying) {

@@ -138,26 +138,51 @@ class _FlowPageState extends ConsumerState<FlowPage> {
             else
               SliverPadding(
                 padding: const EdgeInsets.only(left: 20, right: 20, bottom: 120),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final song = queue[index];
-                      final isPlaying = index == currentIndex;
+                // sliver: SliverList(
+                //   delegate: SliverChildBuilderDelegate(
+                //     (context, index) {
+                //       final song = queue[index];
+                //       final isPlaying = index == currentIndex;
 
-                      return _QueueTile(
-                        song: song,
-                        isPlaying: isPlaying,
-                        onTap: () {
-                          ref.read(playerControllerProvider.notifier).playQueue(queue, index);
-                        },
-                        onDismissed: () {
-                          ref.read(playerControllerProvider.notifier).removeFromQueue(index);
-                        },
-                      );
-                    },
-                    childCount: queue.length,
-                  ),
+                //       return _QueueTile(
+                //         song: song,
+                //         isPlaying: isPlaying,
+                //         onTap: () {
+                //           ref.read(playerControllerProvider.notifier).playQueue(queue, index);
+                //         },
+                //         onDismissed: () {
+                //           ref.read(playerControllerProvider.notifier).removeFromQueue(index);
+                //         },
+                //       );
+                //     },
+                //     childCount: queue.length,
+                //   ),
+                // ),
+
+                sliver: SliverReorderableList(
+                  itemCount: queue.length,
+                  itemBuilder: (context, index) {
+                    final song = queue[index];
+                    final isPlaying = index == currentIndex;
+
+                    return _QueueTile(
+                      key: ValueKey(song.id),
+                      index: index,
+                      song: song,
+                      isPlaying: isPlaying,
+                      onTap: () {
+                        ref.read(playerControllerProvider.notifier).playQueue(queue, index);
+                      },
+                      onDismissed: () {
+                        ref.read(playerControllerProvider.notifier).removeFromQueue(index);
+                      },
+                    );
+                  },
+                  onReorder: (oldIndex, newIndex) {
+                    ref.read(playerControllerProvider.notifier).reorderQueue(oldIndex, newIndex);
+                  },
                 ),
+
               ),
           ],
         ),
@@ -167,12 +192,15 @@ class _FlowPageState extends ConsumerState<FlowPage> {
 }
 
 class _QueueTile extends StatelessWidget {
+  final int index;
   final Song song;
   final bool isPlaying;
   final VoidCallback onTap;
   final VoidCallback onDismissed;
 
   const _QueueTile({
+    super.key,
+    required this.index,
     required this.song, 
     required this.isPlaying, 
     required this.onTap,
@@ -271,10 +299,15 @@ class _QueueTile extends StatelessWidget {
                   child: _AnimatedPlayingIndicator(),
                 )
               else
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0),
-                  child: Icon(Icons.more_vert_rounded, color: AppColors.glassTextMuted, size: 18), 
-                ),
+                ReorderableDragStartListener(
+                  index: index,
+                  child: const Padding(
+                    // padding: EdgeInsetsGeometry.fromLTRB(16, 8, 8, 8), 
+                    padding: EdgeInsetsGeometry.only(left: 16),
+                    child: Icon(
+                      Icons.drag_handle_rounded, 
+                      color: AppColors.glassTextMuted, 
+                      size: 24,),))
             ],
           ),
         ),
