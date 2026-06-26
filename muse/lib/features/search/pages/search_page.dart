@@ -1,18 +1,19 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:muse/features/library/controllers/collection_controller.dart';
 import 'package:muse/features/radio_player/controller/radio_controller.dart';
 import 'package:muse/features/radio_player/pages/radio_listen_page.dart';
 import 'package:muse/features/search/widgets/history_widget.dart';
-import 'package:muse/features/search/widgets/provider_beads_widget.dart';
-import 'package:muse/features/search/widgets/radio_widget.dart';
-import 'package:muse/features/search/widgets/vault_pulse_widget.dart';
 import '../controllers/search_controller.dart';
 import '../controllers/history_controller.dart';
 import '../../player/controllers/player_controller.dart';
 import '../../../models/song.dart';
+
+// 1. IMPORTING THE GLOBAL PRIMITIVES
+import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/primitives/muse_glass.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -24,6 +25,9 @@ class SearchPage extends ConsumerStatefulWidget {
 class _SearchPageState extends ConsumerState<SearchPage> {
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
+  
+  // LIVE TELEMETRY STATE: null means "ALL", otherwise holds the provider name (e.g., "YouTube")
+  String? _activeResultFilter;
 
   @override
   void initState() {
@@ -40,209 +44,300 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.dispose();
   }
 
+  void _resetSearchState() {
+    _searchFocusNode.unfocus();
+    _searchController.clear();
+    _activeResultFilter = null;
+    ref.read(searchControllerProvider.notifier).clearSearch();
+  }
 
   @override
   Widget build(BuildContext context) {
     final searchState = ref.watch(searchControllerProvider);
-    
     final resultsMap = searchState.value ?? {};
-    final isSearchActive = _searchFocusNode.hasFocus || resultsMap.isNotEmpty;
+    
+    // STRICT INTENT BOOLEANS
+    final isFocused = _searchFocusNode.hasFocus;
+    final hasResults = resultsMap.isNotEmpty;
+    final isSearchActive = isFocused || hasResults;
 
     return PopScope(
-      canPop: !isSearchActive, // Only allow system pop if we are fully idle
+      canPop: !isSearchActive, 
       onPopInvoked: (didPop) {
-        if (didPop) return; // The system already popped (we were idle)
-        
+        if (didPop) return; 
         // INTERCEPTED: Virtual Back Navigation
-        _searchFocusNode.unfocus();
-        ref.read(searchControllerProvider.notifier).clearSearch();
-        // Notice we DO NOT clear _searchController.text here!
+        _resetSearchState();
       },
       child: Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          title: TextField(
-            controller: _searchController,
-            focusNode: _searchFocusNode,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: "Search SoundCloud, YouTube, etc...",
-              hintStyle: const TextStyle(color: Colors.white54),
-              border: InputBorder.none,
-              
-              // 3. THE DYNAMIC PREFIX ICON
-              prefixIcon: isSearchActive
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () {
-                        _searchFocusNode.unfocus();
-                        ref.read(searchControllerProvider.notifier).clearSearch();
-                      },
-                    )
-                  : const Padding(
-                      padding: EdgeInsets.all(12.0),
-                      child: Icon(Icons.search, color: Colors.white54),
+        backgroundColor: AppColors.background, // Standardized Baseline
+        body: SafeArea(
+          child: Column(
+            children: [
+              // 1. THE GLASSMORPHIC SEARCH BAR
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: MuseGlass(
+                  borderRadius: 12.0,
+                  blurSigma: 15.0,
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    style: const TextStyle(color: AppColors.pureWhite),
+                    decoration: InputDecoration(
+                      hintText: "Search tracks or genres...",
+                      hintStyle: const TextStyle(color: AppColors.glassTextMuted),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                      
+                      prefixIcon: isSearchActive
+                          ? IconButton(
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.pureWhite, size: 20),
+                              onPressed: _resetSearchState,
+                            )
+                          : const Icon(Icons.search_rounded, color: AppColors.glassTextMuted, size: 22),
+                            
+                      suffixIcon: isFocused || _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded, color: AppColors.glassTextMuted, size: 20),
+                              onPressed: _resetSearchState,
+                            )
+                          : null,
                     ),
-                    
-              // 4. THE CLEAR BUTTON (Suffix)
-              suffixIcon: _searchFocusNode.hasFocus || _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white54),
-                      onPressed: () {
-                        _searchController.clear();
-                        _searchFocusNode.unfocus();
-                        // If they hit the 'X', we also clear the results
-                        ref.read(searchControllerProvider.notifier).clearSearch(); 
-                      },
-                    )
-                  : null,
-            ),
-            onSubmitted: (query) {
-              final activeFilters = ref.read(activeSearchFiltersProvider);
-              ref.read(searchControllerProvider.notifier)
-                  .searchMusic(query, activeFilters: activeFilters);
-              _searchFocusNode.unfocus(); 
-            },
+                    onSubmitted: (query) {
+                      // Fire the search globally across all providers. We filter later using the Telemetry Pills.
+                      ref.read(searchControllerProvider.notifier).searchMusic(query);
+                      _searchFocusNode.unfocus(); 
+                      setState(() => _activeResultFilter = null); // Reset filter on new search
+                    },
+                  ),
+                ),
+              ),
+              
+              // 2. THE STRICT BINARY ROUTER
+              Expanded(
+                child: _buildBodyContent(hasResults, searchState, resultsMap),
+              ),
+            ],
           ),
         ),
-        
-        // Keep your exact body logic here!
-        body: _searchFocusNode.hasFocus 
-            ? SearchHistoryWidget(searchFocusNode: _searchFocusNode) 
-            : _buildSearchResults(searchState),
       ),
     );
   }
 
-  Widget _buildSearchResults(AsyncValue<Map<String, List<Song>>> searchState) {
+  // ─── THE BINARY ROUTER ─────────────────────────────────────────────
+  Widget _buildBodyContent(bool hasResults, AsyncValue<Map<String, List<Song>>> searchState, Map<String, List<Song>> resultsMap) {
+    if (hasResults || searchState.isLoading) {
+      // STATE A: DATA -> Show Telemetry Filters & Omni-List
+      return _buildDataState(searchState, resultsMap);
+    } else {
+      // STATE B: DEFAULT -> Show History
+      return SearchHistoryWidget(searchFocusNode: _searchFocusNode);
+    }
+  }
+
+  // ─── THE DATA STATE (TELEMETRY + OMNI-LIST) ──────────────────────────
+  Widget _buildDataState(AsyncValue<Map<String, List<Song>>> searchState, Map<String, List<Song>> resultsMap) {
     return searchState.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
-      error: (err, stack) => Center(child: Text("Error: $err", style: const TextStyle(color: Colors.red))),
-      data: (resultsMap) {
-        if (resultsMap.isEmpty) {
-          return const Column(
-            children: [
-              SizedBox(height: 20),
-              ProviderBeadsWidget(),
-              SizedBox(height: 20),
-              RadioDashboardWidget(), 
-              SizedBox(height: 20),
-              VaultPulseWidget(),
-            ],
-          );
+      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.pureWhite)),
+      error: (err, stack) => Center(child: Text("Error: $err", style: const TextStyle(color: Colors.redAccent))),
+      data: (_) {
+        
+        // 1. Flatten the map into a single Omni-List based on the active filter
+        final List<Song> displayQueue = [];
+        int totalResults = 0;
+        
+        for (var entry in resultsMap.entries) {
+          totalResults += entry.value.length;
+          if (_activeResultFilter == null || _activeResultFilter == entry.key) {
+            displayQueue.addAll(entry.value);
+          }
         }
 
-        return ListView.builder(
-          itemCount: resultsMap.keys.length,
-          itemBuilder: (context, verticalIndex) {
-            final providerName = resultsMap.keys.elementAt(verticalIndex);
-            final songs = resultsMap[providerName]!;
+        if (totalResults == 0) {
+          return const Center(child: Text("No signals found.", style: TextStyle(color: AppColors.glassTextMuted)));
+        }
 
-            return Padding(
-              padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 2. THE LIVE TELEMETRY FILTER ROW
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                children: [
+                  _buildTelemetryPill("ALL", totalResults, _activeResultFilter == null),
+                  for (var provider in resultsMap.keys)
+                    _buildTelemetryPill(provider, resultsMap[provider]!.length, _activeResultFilter == provider),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // 3. THE UNIFIED OMNI-LIST
+            Expanded(
+              child: ListView.builder(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 120),
+                itemCount: displayQueue.length,
+                itemBuilder: (context, index) {
+                  final song = displayQueue[index];
+                  return _buildListTile(song, displayQueue, index);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ─── COMPONENT BUILDERS ──────────────────────────────────────────────
+  Widget _buildTelemetryPill(String label, int count, bool isActive) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _activeResultFilter = (label == "ALL") ? null : label;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(right: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.pureWhite.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isActive ? AppColors.pureWhite.withOpacity(0.3) : AppColors.glassBorder),
+        ),
+        child: Row(
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                color: isActive ? AppColors.pureWhite : AppColors.glassTextMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              "$count",
+              style: TextStyle(
+                color: isActive ? AppColors.pureWhite : AppColors.glassTextMuted.withOpacity(0.4),
+                fontSize: 11,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListTile(Song song, List<Song> queue, int index) {
+    final bool hasArt = song.albumArt.isNotEmpty;
+    final imageProvider = hasArt 
+        ? (song.albumArt.startsWith('http') ? NetworkImage(song.albumArt) : FileImage(File(song.albumArt))) as ImageProvider
+        : null;
+
+    return InkWell(
+      onTap: () {
+        // Safe backend logic execution
+        ref.read(historyControllerProvider.notifier).addSongToHistory(song);
+        if (song.source == SongSource.radio) {
+          ref.read(radioControllerProvider.notifier).tuneToStation(song);
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true, 
+            useSafeArea: false,
+            backgroundColor: Colors.transparent, 
+            builder: (context) => const RadioListenPage(),
+          );
+        } else {
+          ref.read(playerControllerProvider.notifier).playQueue(queue, index);
+        }
+      },
+      onLongPress: () {
+        ref.read(collectionControllerProvider.notifier).addStreamShortcut(song);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Saved ${song.title} to Vault", style: const TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.w600)),
+            backgroundColor: AppColors.hardwareSurface,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: AppColors.glassBorder)),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 46, height: 46, // Standard 46x46 anchor box
+              decoration: BoxDecoration(
+                color: AppColors.glassShell, 
+                borderRadius: BorderRadius.circular(10),
+                image: hasArt ? DecorationImage(image: imageProvider!, fit: BoxFit.cover) : null,
+              ),
+              child: hasArt ? null : const Icon(Icons.music_note_rounded, size: 20, color: AppColors.glassTextMuted),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Text(
-                      providerName,
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 190, 
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                      itemCount: songs.length,
-                      itemBuilder: (context, horizontalIndex) {
-                        final song = songs[horizontalIndex];
-                        
-                        return GestureDetector(
-                          onTap: () {
-                            // 3. THIS IS THE CRITICAL FIX: Save the ghost record to Isar!
-                            ref.read(historyControllerProvider.notifier).addSongToHistory(song);
-                            
-                            if (song.source == SongSource.radio) {
-                              ref.read(radioControllerProvider.notifier).tuneToStation(song);
-
-                              showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true, 
-                              useSafeArea: false,
-                              backgroundColor: Colors.transparent, 
-                              builder: (context) => const RadioListenPage(),
-                            );
-                          } else {
-                            ref.read(playerControllerProvider.notifier).playQueue(songs, horizontalIndex);
-                          }
-
-                            ref.read(playerControllerProvider.notifier).playQueue(songs, horizontalIndex);
-                          },
-                          onLongPress: () {
-                            ref.read(collectionControllerProvider.notifier).addStreamShortcut(song);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("Saved ${song.title} to Collection 🔗"),
-                                backgroundColor: Colors.teal.shade800,
-                                behavior: SnackBarBehavior.floating,
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 130,
-                            margin: const EdgeInsets.symmetric(horizontal: 6.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  height: 130,
-                                  width: 130,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white10,
-                                    borderRadius: BorderRadius.circular(12),
-                                    image: song.albumArt.isNotEmpty
-                                        ? DecorationImage(
-                                            image: song.albumArt.startsWith("http") ? NetworkImage(song.albumArt) : FileImage(File(song.albumArt)),
-                                            fit: BoxFit.cover,
-                                          )
-                                        : null,
-                                  ),
-                                  child: song.albumArt.isEmpty
-                                      ? const Icon(Icons.music_note, color: Colors.white54, size: 40)
-                                      : null,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  song.title,
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  song.artist,
-                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                  Text(song.title, style: const TextStyle(color: AppColors.pureWhite, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Text(song.artist, style: const TextStyle(color: AppColors.glassTextMuted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),
-            );
-          },
-        );
-      },
+            ),
+            // The Unified Source Badge
+            _SourceBadge(source: song.source),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- UNIFIED MONOCHROME SOURCE BADGE ---
+class _SourceBadge extends StatelessWidget {
+  final SongSource source;
+
+  const _SourceBadge({required this.source});
+
+  @override
+  Widget build(BuildContext context) {
+    String label = source.name.toUpperCase();
+    if (source == SongSource.soundcloud) label = "SC";
+    if (source == SongSource.youtube) label = "YT";
+    if (source == SongSource.jamendo) label = "JM";
+    if (source == SongSource.archive) label = "ARC";
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.glassShell,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.glassTextMuted,
+          fontSize: 9,
+          fontFamily: 'monospace',
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 }

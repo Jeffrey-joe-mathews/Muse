@@ -8,7 +8,7 @@ class AppColors {
   // Domain Expansion : Glassy Sky
   static final Color glassShell = Colors.white.withOpacity(0.08);
   static final Color glassBorder = Colors.white.withOpacity(0.1);
-  static final Color glassTextMuted = Colors.white54;
+  static const Color glassTextMuted = Colors.white54;
   
   // Domain Expansion : Wal-kuh-mano
   static const Color hardwareSurface = Color(0xFF1E2124);
