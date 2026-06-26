@@ -26,7 +26,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
   
-  // LIVE TELEMETRY STATE: null means "ALL", otherwise holds the provider name (e.g., "YouTube")
+  // LIVE TELEMETRY STATE
   String? _activeResultFilter;
 
   @override
@@ -65,11 +65,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       canPop: !isSearchActive, 
       onPopInvoked: (didPop) {
         if (didPop) return; 
-        // INTERCEPTED: Virtual Back Navigation
         _resetSearchState();
       },
       child: Scaffold(
-        backgroundColor: AppColors.background, // Standardized Baseline
+        backgroundColor: AppColors.background, 
         body: SafeArea(
           child: Column(
             children: [
@@ -104,10 +103,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           : null,
                     ),
                     onSubmitted: (query) {
-                      // Fire the search globally across all providers. We filter later using the Telemetry Pills.
                       ref.read(searchControllerProvider.notifier).searchMusic(query);
                       _searchFocusNode.unfocus(); 
-                      setState(() => _activeResultFilter = null); // Reset filter on new search
+                      setState(() => _activeResultFilter = null); 
                     },
                   ),
                 ),
@@ -127,70 +125,73 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   // ─── THE BINARY ROUTER ─────────────────────────────────────────────
   Widget _buildBodyContent(bool hasResults, AsyncValue<Map<String, List<Song>>> searchState, Map<String, List<Song>> resultsMap) {
     if (hasResults || searchState.isLoading) {
-      // STATE A: DATA -> Show Telemetry Filters & Omni-List
       return _buildDataState(searchState, resultsMap);
     } else {
-      // STATE B: DEFAULT -> Show History
       return SearchHistoryWidget(searchFocusNode: _searchFocusNode);
     }
   }
 
-  // ─── THE DATA STATE (TELEMETRY + OMNI-LIST) ──────────────────────────
+  // ─── THE DATA STATE (JIT PROGRESSIVE RENDERING) ────────────────────
   Widget _buildDataState(AsyncValue<Map<String, List<Song>>> searchState, Map<String, List<Song>> resultsMap) {
-    return searchState.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.pureWhite)),
-      error: (err, stack) => Center(child: Text("Error: $err", style: const TextStyle(color: Colors.redAccent))),
-      data: (_) {
-        
-        // 1. Flatten the map into a single Omni-List based on the active filter
-        final List<Song> displayQueue = [];
-        int totalResults = 0;
-        
-        for (var entry in resultsMap.entries) {
-          totalResults += entry.value.length;
-          if (_activeResultFilter == null || _activeResultFilter == entry.key) {
-            displayQueue.addAll(entry.value);
-          }
-        }
+    
+    // 1. If we are completely empty and still loading, show the spinner
+    if (searchState.isLoading && resultsMap.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.pureWhite));
+    }
 
-        if (totalResults == 0) {
-          return const Center(child: Text("No signals found.", style: TextStyle(color: AppColors.glassTextMuted)));
-        }
+    // 2. If an error occurred and we have NO data
+    if (searchState.hasError && resultsMap.isEmpty) {
+      return Center(child: Text("Error: ${searchState.error}", style: const TextStyle(color: Colors.redAccent)));
+    }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 2. THE LIVE TELEMETRY FILTER ROW
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                children: [
-                  _buildTelemetryPill("ALL", totalResults, _activeResultFilter == null),
-                  for (var provider in resultsMap.keys)
-                    _buildTelemetryPill(provider, resultsMap[provider]!.length, _activeResultFilter == provider),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
+    // 3. JIT Processing: Flatten the map into a single Omni-List
+    final List<Song> displayQueue = [];
+    int totalResults = 0;
+    
+    for (var entry in resultsMap.entries) {
+      totalResults += entry.value.length;
+      if (_activeResultFilter == null || _activeResultFilter == entry.key) {
+        displayQueue.addAll(entry.value);
+      }
+    }
 
-            // 3. THE UNIFIED OMNI-LIST
-            Expanded(
-              child: ListView.builder(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 120),
-                itemCount: displayQueue.length,
-                itemBuilder: (context, index) {
-                  final song = displayQueue[index];
-                  return _buildListTile(song, displayQueue, index);
-                },
-              ),
-            ),
-          ],
-        );
-      },
+    // 4. Handle Empty Return State
+    if (totalResults == 0 && !searchState.isLoading) {
+      return const Center(child: Text("No signals found.", style: TextStyle(color: AppColors.glassTextMuted)));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // THE LIVE TELEMETRY FILTER ROW
+        SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            children: [
+              _buildTelemetryPill("ALL", totalResults, _activeResultFilter == null),
+              for (var provider in resultsMap.keys)
+                _buildTelemetryPill(provider, resultsMap[provider]!.length, _activeResultFilter == provider),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // THE UNIFIED OMNI-LIST
+        Expanded(
+          child: ListView.builder(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 120),
+            itemCount: displayQueue.length,
+            itemBuilder: (context, index) {
+              final song = displayQueue[index];
+              return _buildListTile(song, displayQueue, index);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -246,7 +247,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
     return InkWell(
       onTap: () {
-        // Safe backend logic execution
         ref.read(historyControllerProvider.notifier).addSongToHistory(song);
         if (song.source == SongSource.radio) {
           ref.read(radioControllerProvider.notifier).tuneToStation(song);
@@ -280,7 +280,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         child: Row(
           children: [
             Container(
-              width: 46, height: 46, // Standard 46x46 anchor box
+              width: 46, height: 46, 
               decoration: BoxDecoration(
                 color: AppColors.glassShell, 
                 borderRadius: BorderRadius.circular(10),
@@ -299,7 +299,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 ],
               ),
             ),
-            // The Unified Source Badge
             _SourceBadge(source: song.source),
           ],
         ),

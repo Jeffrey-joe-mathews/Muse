@@ -19,6 +19,7 @@ class _FlowPageState extends ConsumerState<FlowPage> {
   String _calculateQueueRuntime(List<Song> queue) {
     Duration total = Duration.zero;
     for (final song in queue) {
+      debugPrint("${song.title} - ${song.duration}");
       if (song.duration != null) {
         total += song.duration!;
       }

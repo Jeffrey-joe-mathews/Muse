@@ -181,6 +181,7 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
           id: entity.networkId ?? entity.id.toString(),
           title: entity.title,
           artist: entity.artist, 
+          // duration: entity.,
           albumArt: entity.albumArtPath, 
           audioURL: (entity.streamUrl != null && entity.streamUrl!.isNotEmpty) 
               ? entity.streamUrl! 
