@@ -71,8 +71,8 @@ class FloatingDock extends ConsumerWidget {
                 children: [
                   _DockItem(icon: Icons.waves_rounded, label: "Flow", index: 0, currentIndex: currentIndex, ref: ref),
                   _DockItem(icon: Icons.explore, label: "Explore", index: 1, currentIndex: currentIndex, ref: ref),
-                  _DockItem(icon: Icons.library_music, label: "Collection", index: 2, currentIndex: currentIndex, ref: ref),
-                  _DockItem(icon: Icons.auto_awesome, label: "Intel", index: 3, currentIndex: currentIndex, ref: ref),
+                  _DockItem(icon: Icons.library_music, label: "Library", index: 2, currentIndex: currentIndex, ref: ref),
+                  _DockItem(icon: Icons.auto_awesome, label: "Radio", index: 3, currentIndex: currentIndex, ref: ref),
                 ],
               ),
             ),

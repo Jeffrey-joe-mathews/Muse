@@ -21,7 +21,7 @@ class CollectionPage extends ConsumerStatefulWidget {
 
 class _CollectionPageState extends ConsumerState<CollectionPage> {
   String? _activeFolder;
-  bool _isGridView = true; 
+  bool _isGridView = false; 
   
   final Set<String> _hiddenGhosts = {};
 

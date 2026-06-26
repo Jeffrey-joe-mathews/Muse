@@ -1,3 +1,12 @@
+// TODO
+// - folder addition
+// - song addition
+// - sync vault
+// - selection
+// - creation of folder
+
+
+
 // TwT
 import 'dart:io';
 import 'package:flutter/material.dart';
