@@ -127,8 +127,7 @@ class DatabaseService {
     });
   }
 
-
-
+// HISTORY METHODS
 
   Future<List<SongEntity>> getRecentHistory() async {
     final isar = await db;
@@ -164,6 +163,8 @@ class DatabaseService {
     }
   }
 
+// GARBAGE COLLECTOR (cause why not)
+
   Future<void> _runGarbageCollector(Isar isar) async {
     // Define the TTL (Time To Live). 
     final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
@@ -181,6 +182,8 @@ class DatabaseService {
       }
     });
   }
+
+// RADIO METHODS
 
   Future<void> saveRadioPreset(int index, RadioPresetEntity preset) async {
     final isar = await db;

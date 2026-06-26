@@ -27,38 +27,43 @@ const SongEntitySchema = CollectionSchema(
       name: r'artist',
       type: IsarType.string,
     ),
-    r'filePath': PropertySchema(
+    r'durationMs': PropertySchema(
       id: 2,
+      name: r'durationMs',
+      type: IsarType.long,
+    ),
+    r'filePath': PropertySchema(
+      id: 3,
       name: r'filePath',
       type: IsarType.string,
     ),
     r'isSavedToVault': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'isSavedToVault',
       type: IsarType.bool,
     ),
     r'lastPlayed': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'lastPlayed',
       type: IsarType.dateTime,
     ),
     r'networkId': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'networkId',
       type: IsarType.string,
     ),
     r'source': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'source',
       type: IsarType.string,
     ),
     r'streamUrl': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'streamUrl',
       type: IsarType.string,
     ),
     r'title': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'title',
       type: IsarType.string,
     )
@@ -132,13 +137,14 @@ void _songEntitySerialize(
 ) {
   writer.writeString(offsets[0], object.albumArtPath);
   writer.writeString(offsets[1], object.artist);
-  writer.writeString(offsets[2], object.filePath);
-  writer.writeBool(offsets[3], object.isSavedToVault);
-  writer.writeDateTime(offsets[4], object.lastPlayed);
-  writer.writeString(offsets[5], object.networkId);
-  writer.writeString(offsets[6], object.source);
-  writer.writeString(offsets[7], object.streamUrl);
-  writer.writeString(offsets[8], object.title);
+  writer.writeLong(offsets[2], object.durationMs);
+  writer.writeString(offsets[3], object.filePath);
+  writer.writeBool(offsets[4], object.isSavedToVault);
+  writer.writeDateTime(offsets[5], object.lastPlayed);
+  writer.writeString(offsets[6], object.networkId);
+  writer.writeString(offsets[7], object.source);
+  writer.writeString(offsets[8], object.streamUrl);
+  writer.writeString(offsets[9], object.title);
 }
 
 SongEntity _songEntityDeserialize(
@@ -150,14 +156,15 @@ SongEntity _songEntityDeserialize(
   final object = SongEntity();
   object.albumArtPath = reader.readString(offsets[0]);
   object.artist = reader.readString(offsets[1]);
-  object.filePath = reader.readString(offsets[2]);
+  object.durationMs = reader.readLongOrNull(offsets[2]);
+  object.filePath = reader.readString(offsets[3]);
   object.id = id;
-  object.isSavedToVault = reader.readBool(offsets[3]);
-  object.lastPlayed = reader.readDateTimeOrNull(offsets[4]);
-  object.networkId = reader.readStringOrNull(offsets[5]);
-  object.source = reader.readString(offsets[6]);
-  object.streamUrl = reader.readStringOrNull(offsets[7]);
-  object.title = reader.readString(offsets[8]);
+  object.isSavedToVault = reader.readBool(offsets[4]);
+  object.lastPlayed = reader.readDateTimeOrNull(offsets[5]);
+  object.networkId = reader.readStringOrNull(offsets[6]);
+  object.source = reader.readString(offsets[7]);
+  object.streamUrl = reader.readStringOrNull(offsets[8]);
+  object.title = reader.readString(offsets[9]);
   return object;
 }
 
@@ -173,18 +180,20 @@ P _songEntityDeserializeProp<P>(
     case 1:
       return (reader.readString(offset)) as P;
     case 2:
-      return (reader.readString(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 3:
-      return (reader.readBool(offset)) as P;
-    case 4:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 5:
-      return (reader.readStringOrNull(offset)) as P;
-    case 6:
       return (reader.readString(offset)) as P;
-    case 7:
+    case 4:
+      return (reader.readBool(offset)) as P;
+    case 5:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 6:
       return (reader.readStringOrNull(offset)) as P;
+    case 7:
+      return (reader.readString(offset)) as P;
     case 8:
+      return (reader.readStringOrNull(offset)) as P;
+    case 9:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -647,6 +656,79 @@ extension SongEntityQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'artist',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      durationMsIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'durationMs',
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      durationMsIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'durationMs',
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition> durationMsEqualTo(
+      int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'durationMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      durationMsGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'durationMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition>
+      durationMsLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'durationMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterFilterCondition> durationMsBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'durationMs',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }
@@ -1534,6 +1616,18 @@ extension SongEntityQuerySortBy
     });
   }
 
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> sortByDurationMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'durationMs', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> sortByDurationMsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'durationMs', Sort.desc);
+    });
+  }
+
   QueryBuilder<SongEntity, SongEntity, QAfterSortBy> sortByFilePath() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'filePath', Sort.asc);
@@ -1643,6 +1737,18 @@ extension SongEntityQuerySortThenBy
   QueryBuilder<SongEntity, SongEntity, QAfterSortBy> thenByArtistDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'artist', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> thenByDurationMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'durationMs', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SongEntity, SongEntity, QAfterSortBy> thenByDurationMsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'durationMs', Sort.desc);
     });
   }
 
@@ -1760,6 +1866,12 @@ extension SongEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<SongEntity, SongEntity, QDistinct> distinctByDurationMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'durationMs');
+    });
+  }
+
   QueryBuilder<SongEntity, SongEntity, QDistinct> distinctByFilePath(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1825,6 +1937,12 @@ extension SongEntityQueryProperty
   QueryBuilder<SongEntity, String, QQueryOperations> artistProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'artist');
+    });
+  }
+
+  QueryBuilder<SongEntity, int?, QQueryOperations> durationMsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'durationMs');
     });
   }
 

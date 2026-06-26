@@ -181,7 +181,7 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
           id: entity.networkId ?? entity.id.toString(),
           title: entity.title,
           artist: entity.artist, 
-          // duration: entity.,
+          duration: entity.durationMs != null ? Duration(milliseconds: entity.durationMs!) : null,
           albumArt: entity.albumArtPath, 
           audioURL: (entity.streamUrl != null && entity.streamUrl!.isNotEmpty) 
               ? entity.streamUrl! 
@@ -205,6 +205,7 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
       ..albumArtPath = normalizedSong.albumArt
       ..filePath = normalizedSong.audioURL
       ..source = 'local'
+      ..durationMs = normalizedSong.duration?.inMilliseconds
       ..isSavedToVault = true
       ..lastPlayed = DateTime.now();
     

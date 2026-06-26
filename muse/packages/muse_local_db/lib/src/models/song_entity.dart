@@ -15,6 +15,7 @@ class SongEntity {
   String artist = "Unknown Artist";
   String albumArtPath = "";
   String source = "local"; 
+  int? durationMs;
   String? streamUrl; 
   String? networkId;
   
