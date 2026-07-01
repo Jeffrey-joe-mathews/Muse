@@ -2,7 +2,8 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:muse/features/root/pages/root_page.dart';
 
 import '../../../core/services/storage_service.dart';
 import '../../../models/song.dart';
@@ -10,7 +11,8 @@ import '../../player/controllers/player_controller.dart';
 import '../controllers/collection_controller.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/primitives/muse_glass.dart';
+
+final activeFolderProvider = StateProvider<String?>((ref) => null);
 
 class CollectionPage extends ConsumerStatefulWidget {
   const CollectionPage({super.key});
@@ -20,68 +22,70 @@ class CollectionPage extends ConsumerStatefulWidget {
 }
 
 class _CollectionPageState extends ConsumerState<CollectionPage> {
-  String? _activeFolder;
-  bool _isGridView = false; 
-  
+  bool _isGridView = false;
   final Set<String> _hiddenGhosts = {};
+
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleSelectionToggle(String itemId) {
+    final selected = Set<String>.from(ref.read(selectedItemsProvider));
+    if (selected.contains(itemId)) {
+      selected.remove(itemId);
+    } else {
+      selected.add(itemId);
+    }
+    ref.read(selectedItemsProvider.notifier).state = selected;
+  }
 
   @override
   Widget build(BuildContext context) {
     final collectionState = ref.watch(collectionControllerProvider);
     final playerState = ref.watch(playerControllerProvider);
 
-    // DYNAMIC GLOBAL PLAY STATE: Find out exactly which song is playing right now
-    final String? currentSongId = (playerState.queue.isNotEmpty && 
-                                   playerState.currentIndex >= 0 && 
-                                   playerState.currentIndex < playerState.queue.length)
+    final activeFolder = ref.watch(activeFolderProvider);
+    final isVaultMenuOpen = ref.watch(vaultMenuProvider);
+
+    final isMultiSelect = ref.watch(multiSelectProvider);
+    final selectedItems = ref.watch(selectedItemsProvider);
+
+    final String? currentSongId =
+        (playerState.queue.isNotEmpty &&
+            playerState.currentIndex >= 0 &&
+            playerState.currentIndex < playerState.queue.length)
         ? playerState.queue[playerState.currentIndex].id
         : null;
 
     return PopScope(
-      canPop: _activeFolder == null,
+      canPop: activeFolder == null && !isVaultMenuOpen && !isMultiSelect,
       onPopInvoked: (didPop) {
         if (!didPop) {
-          if (_activeFolder == "Cloud Streams" || !_activeFolder!.contains('/')) {
-            setState(() => _activeFolder = null);
+          if (isMultiSelect) {
+            ref.read(multiSelectProvider.notifier).state = false;
+            ref.read(selectedItemsProvider.notifier).state = {};
+            return;
+          }
+
+          if (isVaultMenuOpen) {
+            ref.read(vaultMenuProvider.notifier).state = false;
+            return;
+          }
+
+          if (activeFolder == "Cloud Streams" || !activeFolder!.contains('/')) {
+            ref.read(activeFolderProvider.notifier).state = null;
           } else {
-            setState(() => _activeFolder = _activeFolder!.substring(0, _activeFolder!.lastIndexOf('/')));
+            ref.read(activeFolderProvider.notifier).state = activeFolder
+                .substring(0, activeFolder.lastIndexOf('/'));
           }
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.background, 
-        
-        floatingActionButton: MuseGlass(
-          borderRadius: 30, 
-          blurSigma: 20.0,
-          child: FloatingActionButton(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            child: const Icon(Icons.add, color: AppColors.pureWhite, size: 28),
-            onPressed: () async {
-              FilePickerResult? result = await FilePicker.pickFiles(type: FileType.audio);
-
-              if (result != null && result.files.isNotEmpty) {
-                final pickedPath = result.files.first.path;
-                final name = result.files.first.name;
-                
-                if (pickedPath != null) {
-                  final vaultPath = StorageService().vaultPath;
-                  final targetDir = (_activeFolder == null || _activeFolder == "Cloud Streams") 
-                      ? Directory('$vaultPath/Inbox') 
-                      : Directory('$vaultPath/$_activeFolder');
-                  
-                  if (!targetDir.existsSync()) targetDir.createSync();
-
-                  final permanentFile = await File(pickedPath).copy('${targetDir.path}/$name');
-                  ref.read(collectionControllerProvider.notifier).addSong(permanentFile.path);
-                  File(pickedPath).delete().ignore();
-                }
-              }
-            },
-          ),
-        ),
-
+        backgroundColor: AppColors.background,
         body: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,47 +95,110 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "Vault",
-                          style: TextStyle(
-                            color: AppColors.pureWhite,
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.0,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => setState(() => _isGridView = !_isGridView),
-                          behavior: HitTestBehavior.opaque,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
-                            child: Icon(
-                              _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded, 
-                              color: AppColors.glassTextMuted,
-                              size: 24,
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: isMultiSelect
+                          ? Row(
+                              key: const ValueKey('multiselect_header'),
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "${selectedItems.length} Selected",
+                                  style: const TextStyle(
+                                    color: AppColors.pureWhite,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -1.0,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              key: const ValueKey('vault_header'),
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  "Vault",
+                                  style: TextStyle(
+                                    color: AppColors.pureWhite,
+                                    fontSize: 34,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -1.0,
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () =>
+                                          ref
+                                                  .read(
+                                                    vaultMenuProvider.notifier,
+                                                  )
+                                                  .state =
+                                              !isVaultMenuOpen,
+                                      behavior: HitTestBehavior.opaque,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 16.0,
+                                          bottom: 8.0,
+                                        ),
+                                        child: Icon(
+                                          isVaultMenuOpen
+                                              ? Icons.close_rounded
+                                              : Icons
+                                                    .add_circle_outline_rounded,
+                                          color: isVaultMenuOpen
+                                              ? AppColors.pureWhite
+                                              : AppColors.glassTextMuted,
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () => setState(
+                                        () => _isGridView = !_isGridView,
+                                      ),
+                                      behavior: HitTestBehavior.opaque,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 16.0,
+                                          bottom: 8.0,
+                                        ),
+                                        child: Icon(
+                                          _isGridView
+                                              ? Icons.view_list_rounded
+                                              : Icons.grid_view_rounded,
+                                          color: AppColors.glassTextMuted,
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                      ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      _activeFolder == null 
-                          ? "~/Music/MuseVault" 
-                          : "~/Music/MuseVault/$_activeFolder",
-                      style: const TextStyle(
-                        color: AppColors.glassTextMuted,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2.0,
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: Text(
+                        activeFolder == null
+                            ? "~/Music/MuseVault"
+                            : "~/Music/MuseVault/$activeFolder",
+                        style: const TextStyle(
+                          color: AppColors.glassTextMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.0,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -139,81 +206,160 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
 
               Expanded(
                 child: collectionState.when(
-                  loading: () => const Center(child: CircularProgressIndicator(color: AppColors.pureWhite)),
-                  error: (err, stack) => Center(child: Text("Error: $err", style: const TextStyle(color: Colors.redAccent))),
+                  loading: () => const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.pureWhite,
+                    ),
+                  ),
+                  error: (err, stack) => Center(
+                    child: Text(
+                      "Error: $err",
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
+                  ),
                   data: (rawSongs) {
-                    final songs = rawSongs.where((s) => !_hiddenGhosts.contains(s.id)).toList();
+                    final songs = rawSongs
+                        .where((s) => !_hiddenGhosts.contains(s.id))
+                        .toList();
                     final vaultPath = StorageService().vaultPath;
+                    final rootDir = Directory(vaultPath);
+                    final hasPhysicalFolders =
+                        rootDir.existsSync() &&
+                        rootDir
+                            .listSync(recursive: false)
+                            .whereType<Directory>()
+                            .isNotEmpty;
 
-                    if (songs.isEmpty && _activeFolder == null) {
+                    if (songs.isEmpty &&
+                        activeFolder == null &&
+                        !hasPhysicalFolders) {
                       return const Center(
                         child: Text(
-                          "Vault is empty. Tap + to add music.", 
-                          style: TextStyle(color: AppColors.glassTextMuted, fontWeight: FontWeight.w600)
-                        )
+                          "Vault is empty, use + to add music.",
+                          style: TextStyle(
+                            color: AppColors.glassTextMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       );
                     }
 
                     List<String> subFolders = [];
                     List<Song> directSongs = [];
                     Map<String, int> folderItemCounts = {};
-                    bool isRoot = _activeFolder == null;
+                    bool isRoot = activeFolder == null;
 
-                    if (_activeFolder == "Cloud Streams") {
-                      directSongs = songs.where((s) => s.source != SongSource.local).toList();
+                    if (activeFolder == "Cloud Streams") {
+                      directSongs = songs
+                          .where((s) => s.source != SongSource.local)
+                          .toList();
                     } else {
-                      String currentDirPath = isRoot ? vaultPath : '$vaultPath/$_activeFolder';
+                      String currentDirPath = isRoot
+                          ? vaultPath
+                          : '$vaultPath/$activeFolder';
                       Set<String> subFolderSet = {};
                       int cloudCount = 0;
+
+                      // read the directories so that empty folders can also be displayed
+                      final currentDir = Directory(currentDirPath);
+                      if (currentDir.existsSync()) {
+                        for (var entity in currentDir.listSync(
+                          recursive: false,
+                        )) {
+                          if (entity is Directory) {
+                            final folderName = entity.path.split('/').last;
+                            if (!folderName.startsWith('.')) {
+                              subFolderSet.add(folderName);
+                            }
+                          }
+                        }
+                      }
 
                       for (var song in songs) {
                         if (song.source != SongSource.local) {
                           if (isRoot) cloudCount++;
                         } else {
                           if (song.audioURL.startsWith('$currentDirPath/')) {
-                            String relPath = song.audioURL.substring(currentDirPath.length + 1);
+                            String relPath = song.audioURL.substring(
+                              currentDirPath.length + 1,
+                            );
                             List<String> segments = relPath.split('/');
-                            
+
                             if (segments.length == 1) {
                               directSongs.add(song);
                             } else {
                               String subDir = segments.first;
                               subFolderSet.add(subDir);
-                              folderItemCounts[subDir] = (folderItemCounts[subDir] ?? 0) + 1;
+                              folderItemCounts[subDir] =
+                                  (folderItemCounts[subDir] ?? 0) + 1;
                             }
                           }
                         }
                       }
-                      
+
                       subFolders = subFolderSet.toList()..sort();
-                      
+
                       if (isRoot && cloudCount > 0) {
                         subFolders.add("Cloud Streams");
                         folderItemCounts["Cloud Streams"] = cloudCount;
                       }
                     }
 
-                    final int backButtonCount = isRoot ? 0 : 1;
-                    final int totalItems = backButtonCount + subFolders.length + directSongs.length;
+                    final int backButtonCount = (isRoot || isMultiSelect)
+                        ? 0
+                        : 1;
+                    final int totalItems =
+                        backButtonCount +
+                        subFolders.length +
+                        directSongs.length;
 
-                    return _isGridView 
-                      ? GridView.builder(
-                          padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 120),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 1.1,
-                          ),
-                          itemCount: totalItems,
-                          itemBuilder: (context, index) => _buildUnifiedItem(index, backButtonCount, subFolders, folderItemCounts, directSongs, currentSongId),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 120),
-                          itemCount: totalItems,
-                          // The padding wrapper that adds vertical breathing room between list items
-                          itemBuilder: (context, index) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0), 
-                            child: _buildUnifiedItem(index, backButtonCount, subFolders, folderItemCounts, directSongs, currentSongId),
-                          ),
-                        );
+                    return _isGridView
+                        ? GridView.builder(
+                            padding: const EdgeInsets.only(
+                              left: 16,
+                              right: 16,
+                              top: 8,
+                              bottom: 120,
+                            ),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                  childAspectRatio: 1.1,
+                                ),
+                            itemCount: totalItems,
+                            itemBuilder: (context, index) => _buildUnifiedItem(
+                              index,
+                              backButtonCount,
+                              subFolders,
+                              folderItemCounts,
+                              directSongs,
+                              currentSongId,
+                              activeFolder,
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(
+                              left: 16,
+                              right: 16,
+                              top: 8,
+                              bottom: 120,
+                            ),
+                            itemCount: totalItems,
+                            itemBuilder: (context, index) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: _buildUnifiedItem(
+                                index,
+                                backButtonCount,
+                                subFolders,
+                                folderItemCounts,
+                                directSongs,
+                                currentSongId,
+                                activeFolder,
+                              ),
+                            ),
+                          );
                   },
                 ),
               ),
@@ -224,64 +370,144 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
     );
   }
 
-  Widget _buildUnifiedItem(int index, int backButtonCount, List<String> subFolders, Map<String, int> counts, List<Song> directSongs, String? currentSongId) {
+  Widget _buildSelectionBox(
+    bool isMultiSelect,
+    bool isSelected,
+    Widget normalIcon,
+  ) {
+    if (!isMultiSelect) return normalIcon;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: isSelected ? AppColors.pureWhite : AppColors.glassShell,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isSelected ? AppColors.pureWhite : AppColors.glassBorder,
+        ),
+      ),
+      child: isSelected
+          ? const Icon(Icons.check_rounded, color: Colors.black, size: 24)
+          : null,
+    );
+  }
+
+  Widget _buildUnifiedItem(
+    int index,
+    int backButtonCount,
+    List<String> subFolders,
+    Map<String, int> counts,
+    List<Song> directSongs,
+    String? currentSongId,
+    String? activeFolder,
+  ) {
     if (index < backButtonCount) {
-      return _buildUnixBackButton();
+      return _buildUnixBackButton(activeFolder);
     }
-    
+
     int folderIndex = index - backButtonCount;
     if (folderIndex < subFolders.length) {
       String folderName = subFolders[folderIndex];
       bool isCloud = folderName == "Cloud Streams";
       int count = counts[folderName] ?? 0;
-      return _buildFolderItem(folderName, count, isCloud);
+      return _buildFolderItem(folderName, count, isCloud, activeFolder);
     }
-    
+
     int songIndex = folderIndex - subFolders.length;
     final song = directSongs[songIndex];
-    // We check if this specific song's ID matches the one playing in Riverpod
     final isPlaying = song.id == currentSongId;
-    
+
     return _buildSongItem(song, directSongs, songIndex, isPlaying);
   }
 
-  Widget _buildFolderItem(String folderName, int count, bool isCloud) {
+  Widget _buildFolderItem(
+    String folderName,
+    int count,
+    bool isCloud,
+    String? activeFolder,
+  ) {
+    final isMultiSelect = ref.watch(multiSelectProvider);
+    final selectedItems = ref.watch(selectedItemsProvider);
+
+    final isSelected = selectedItems.contains(folderName) && !isCloud;
     final icon = isCloud ? Icons.cloud_outlined : Icons.folder_open_rounded;
+
     final onTap = () async {
+      if (isMultiSelect) {
+        if (!isCloud) _handleSelectionToggle(folderName);
+        return;
+      }
       if (!isCloud) {
-        final targetPath = _activeFolder == null ? folderName : '$_activeFolder/$folderName';
-        final targetDir = Directory('${StorageService().vaultPath}/$targetPath');
-        
+        final targetPath = activeFolder == null
+            ? folderName
+            : '$activeFolder/$folderName';
+        final targetDir = Directory(
+          '${StorageService().vaultPath}/$targetPath',
+        );
+
         if (!targetDir.existsSync()) {
           setState(() => _hiddenGhosts.add(folderName));
           ref.read(collectionControllerProvider.notifier).syncVault();
           return;
         }
-        setState(() => _activeFolder = targetPath);
+        ref.read(activeFolderProvider.notifier).state = targetPath;
       } else {
-        setState(() => _activeFolder = "Cloud Streams");
+        ref.read(activeFolderProvider.notifier).state = "Cloud Streams";
+      }
+    };
+
+    final onLongPress = () {
+      if (!isCloud && !isMultiSelect) {
+        ref.read(multiSelectProvider.notifier).state = true;
+        _handleSelectionToggle(folderName);
       }
     };
 
     if (_isGridView) {
       return InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.glassShell, 
+            color: isSelected
+                ? AppColors.pureWhite.withOpacity(0.1)
+                : AppColors.glassShell,
             borderRadius: BorderRadius.circular(16),
+            border: isSelected
+                ? Border.all(color: AppColors.pureWhite.withOpacity(0.5))
+                : null,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 48, color: AppColors.pureWhite), 
+              _buildSelectionBox(
+                isMultiSelect && !isCloud,
+                isSelected,
+                Icon(icon, size: 48, color: AppColors.pureWhite),
+              ),
               const SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Text(folderName, style: const TextStyle(color: AppColors.pureWhite, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  folderName,
+                  style: const TextStyle(
+                    color: AppColors.pureWhite,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              Text("$count items", style: const TextStyle(color: AppColors.glassTextMuted, fontSize: 12)),
+              Text(
+                "$count items",
+                style: const TextStyle(
+                  color: AppColors.glassTextMuted,
+                  fontSize: 12,
+                ),
+              ),
             ],
           ),
         ),
@@ -290,43 +516,72 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Standardized inner padding
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
-            Container(
-              width: 46, height: 46,
-              decoration: BoxDecoration(
-                color: AppColors.glassShell,
-                borderRadius: BorderRadius.circular(10)
+            _buildSelectionBox(
+              isMultiSelect && !isCloud,
+              isSelected,
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.glassShell,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 24, color: AppColors.pureWhite),
               ),
-              child: Icon(icon, size: 24, color: AppColors.pureWhite),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(folderName, style: const TextStyle(color: AppColors.pureWhite, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    folderName,
+                    style: const TextStyle(
+                      color: AppColors.pureWhite,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 4),
-                  Text("$count items", style: const TextStyle(color: AppColors.glassTextMuted, fontSize: 12)),
+                  Text(
+                    "$count items",
+                    style: const TextStyle(
+                      color: AppColors.glassTextMuted,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.glassTextMuted, size: 20),
+            if (!isMultiSelect)
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.glassTextMuted,
+                size: 20,
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildUnixBackButton() {
+  Widget _buildUnixBackButton(String? activeFolder) {
     final onTap = () {
-      if (_activeFolder == "Cloud Streams" || !_activeFolder!.contains('/')) {
-        setState(() => _activeFolder = null);
+      if (activeFolder == "Cloud Streams" || !activeFolder!.contains('/')) {
+        ref.read(activeFolderProvider.notifier).state = null;
       } else {
-        setState(() => _activeFolder = _activeFolder!.substring(0, _activeFolder!.lastIndexOf('/')));
+        ref.read(activeFolderProvider.notifier).state = activeFolder.substring(
+          0,
+          activeFolder.lastIndexOf('/'),
+        );
       }
     };
 
@@ -342,9 +597,20 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
           child: const Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.drive_folder_upload, size: 48, color: AppColors.glassTextMuted),
+              Icon(
+                Icons.drive_folder_upload,
+                size: 48,
+                color: AppColors.glassTextMuted,
+              ),
               SizedBox(height: 12),
-              Text("..", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold, fontSize: 24)),
+              Text(
+                "..",
+                style: TextStyle(
+                  color: AppColors.pureWhite,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ),
+              ),
             ],
           ),
         ),
@@ -359,16 +625,28 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
         child: Row(
           children: [
             Container(
-              width: 46, height: 46,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 color: AppColors.glassShell,
-                borderRadius: BorderRadius.circular(10)
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.drive_folder_upload, size: 24, color: AppColors.glassTextMuted),
+              child: const Icon(
+                Icons.drive_folder_upload,
+                size: 24,
+                color: AppColors.glassTextMuted,
+              ),
             ),
             const SizedBox(width: 14),
             const Expanded(
-              child: Text("..", style: TextStyle(color: AppColors.pureWhite, fontSize: 14, fontWeight: FontWeight.bold)),
+              child: Text(
+                "..",
+                style: TextStyle(
+                  color: AppColors.pureWhite,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -376,14 +654,32 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
     );
   }
 
-  Widget _buildSongItem(Song song, List<Song> queue, int index, bool isPlaying) {
+  Widget _buildSongItem(
+    Song song,
+    List<Song> queue,
+    int index,
+    bool isPlaying,
+  ) {
+    final isMultiSelect = ref.watch(multiSelectProvider);
+    final selectedItems = ref.watch(selectedItemsProvider);
+    final isSelected = selectedItems.contains(song.audioURL);
+
     final bool hasArt = song.albumArt.isNotEmpty;
-    final imageProvider = hasArt 
-        ? (song.albumArt.startsWith('http') ? NetworkImage(song.albumArt) : FileImage(File(song.albumArt))) as ImageProvider
+    final imageProvider = hasArt
+        ? (song.albumArt.startsWith('http')
+                  ? NetworkImage(song.albumArt)
+                  : FileImage(File(song.albumArt)))
+              as ImageProvider
         : null;
 
     final onTap = () async {
-      if (song.source == SongSource.local && !File(song.audioURL).existsSync()) {
+      if (isMultiSelect) {
+        _handleSelectionToggle(song.audioURL);
+        return;
+      }
+
+      if (song.source == SongSource.local &&
+          !File(song.audioURL).existsSync()) {
         setState(() => _hiddenGhosts.add(song.id));
         ref.read(collectionControllerProvider.notifier).syncVault();
         return;
@@ -391,28 +687,59 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
       ref.read(playerControllerProvider.notifier).playQueue(queue, index);
     };
 
+    final onLongPress = () {
+      if (!isMultiSelect) {
+        ref.read(multiSelectProvider.notifier).state = true;
+        _handleSelectionToggle(song.audioURL);
+      }
+    };
+
     if (_isGridView) {
       return InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(16),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           decoration: BoxDecoration(
-            color: AppColors.glassShell, 
+            color: isSelected
+                ? AppColors.pureWhite.withOpacity(0.1)
+                : AppColors.glassShell,
             borderRadius: BorderRadius.circular(16),
-            // Highlights the active grid item beautifully
-            border: isPlaying ? Border.all(color: AppColors.pureWhite.withOpacity(0.2), width: 1.5) : null,
+            border: isPlaying || isSelected
+                ? Border.all(
+                    color: AppColors.pureWhite.withOpacity(0.5),
+                    width: 1.5,
+                  )
+                : null,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                    image: hasArt ? DecorationImage(image: imageProvider!, fit: BoxFit.cover) : null,
+                child: _buildSelectionBox(
+                  isMultiSelect,
+                  isSelected,
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
+                      image: hasArt
+                          ? DecorationImage(
+                              image: imageProvider!,
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: hasArt
+                        ? null
+                        : const Icon(
+                            Icons.audio_file_outlined,
+                            size: 48,
+                            color: AppColors.glassTextMuted,
+                          ),
                   ),
-                  child: hasArt ? null : const Icon(Icons.audio_file_outlined, size: 48, color: AppColors.glassTextMuted),
                 ),
               ),
               Padding(
@@ -421,15 +748,26 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      song.title, 
-                      style: TextStyle(color: AppColors.pureWhite, fontSize: 14, fontWeight: isPlaying ? FontWeight.bold : FontWeight.w600), 
-                      maxLines: 1, overflow: TextOverflow.ellipsis
+                      song.title,
+                      style: TextStyle(
+                        color: AppColors.pureWhite,
+                        fontSize: 14,
+                        fontWeight: isPlaying
+                            ? FontWeight.bold
+                            : FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      song.artist, 
-                      style: const TextStyle(color: AppColors.glassTextMuted, fontSize: 12), 
-                      maxLines: 1, overflow: TextOverflow.ellipsis
+                      song.artist,
+                      style: const TextStyle(
+                        color: AppColors.glassTextMuted,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -440,28 +778,48 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
       );
     }
 
-    // List View Song Item: Flow-Style Active Highlight
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isPlaying ? AppColors.glassShell : Colors.transparent,
+          color: (isPlaying && !isMultiSelect)
+              ? AppColors.glassShell
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
-          border: isPlaying ? Border.all(color: AppColors.glassBorder) : null,
+          border: (isPlaying && !isMultiSelect)
+              ? Border.all(color: AppColors.glassBorder)
+              : null,
         ),
         child: Row(
           children: [
-            Container(
-              width: 46, height: 46,
-              decoration: BoxDecoration(
-                color: AppColors.glassShell,
-                borderRadius: BorderRadius.circular(10),
-                image: hasArt ? DecorationImage(image: imageProvider!, fit: BoxFit.cover) : null,
+            _buildSelectionBox(
+              isMultiSelect,
+              isSelected,
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.glassShell,
+                  borderRadius: BorderRadius.circular(10),
+                  image: hasArt
+                      ? DecorationImage(
+                          image: imageProvider!,
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: hasArt
+                    ? null
+                    : const Icon(
+                        Icons.audio_file_outlined,
+                        size: 20,
+                        color: AppColors.glassTextMuted,
+                      ),
               ),
-              child: hasArt ? null : const Icon(Icons.audio_file_outlined, size: 20, color: AppColors.glassTextMuted),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -469,32 +827,41 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    song.title, 
+                    song.title,
                     style: TextStyle(
-                      color: AppColors.pureWhite, 
-                      fontSize: 14, 
-                      fontWeight: isPlaying ? FontWeight.w800 : FontWeight.bold
-                    ), 
-                    maxLines: 1, overflow: TextOverflow.ellipsis
+                      color: AppColors.pureWhite,
+                      fontSize: 14,
+                      fontWeight: isPlaying ? FontWeight.w800 : FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    song.artist, 
-                    style: const TextStyle(color: AppColors.glassTextMuted, fontSize: 12), 
-                    maxLines: 1, overflow: TextOverflow.ellipsis
+                    song.artist,
+                    style: const TextStyle(
+                      color: AppColors.glassTextMuted,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            if (isPlaying)
+            if (isPlaying && !isMultiSelect)
               const Padding(
                 padding: EdgeInsets.only(left: 16.0),
                 child: _AnimatedPlayingIndicator(),
               )
-            else
+            else if (!isMultiSelect)
               const Padding(
                 padding: EdgeInsets.only(left: 16.0),
-                child: Icon(Icons.more_vert_rounded, color: AppColors.glassTextMuted, size: 18), 
+                child: Icon(
+                  Icons.more_vert_rounded,
+                  color: AppColors.glassTextMuted,
+                  size: 18,
+                ),
               ),
           ],
         ),
@@ -503,15 +870,16 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
   }
 }
 
-// --- TRUE ANIMATED EQUALIZER ---
 class _AnimatedPlayingIndicator extends StatefulWidget {
   const _AnimatedPlayingIndicator();
 
   @override
-  State<_AnimatedPlayingIndicator> createState() => _AnimatedPlayingIndicatorState();
+  State<_AnimatedPlayingIndicator> createState() =>
+      _AnimatedPlayingIndicatorState();
 }
 
-class _AnimatedPlayingIndicatorState extends State<_AnimatedPlayingIndicator> with SingleTickerProviderStateMixin {
+class _AnimatedPlayingIndicatorState extends State<_AnimatedPlayingIndicator>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
@@ -539,7 +907,7 @@ class _AnimatedPlayingIndicatorState extends State<_AnimatedPlayingIndicator> wi
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           _EqBar(animation: _controller, offset: 0.0),
-          _EqBar(animation: _controller, offset: 2.0), 
+          _EqBar(animation: _controller, offset: 2.0),
           _EqBar(animation: _controller, offset: 4.0),
           _EqBar(animation: _controller, offset: 1.0),
         ],
@@ -566,7 +934,7 @@ class _EqBar extends StatelessWidget {
           width: 2.5,
           height: 16 * heightPercent,
           decoration: BoxDecoration(
-            color: AppColors.pureWhite, 
+            color: AppColors.pureWhite,
             borderRadius: BorderRadius.circular(4),
           ),
         );

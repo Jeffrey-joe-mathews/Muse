@@ -17,4 +17,7 @@ class AppColors {
   static final Color ledRedActive = Colors.red.shade500;
   static final Color ledRedStandby = Colors.red.shade900;
   static const Color tapeSticker = Color(0xFFDED9C4);
+
+  // Misc
+  static final Color glassBlur = Colors.black.withOpacity(0.1);
 }
