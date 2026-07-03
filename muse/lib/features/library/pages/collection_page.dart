@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:muse/features/root/pages/root_page.dart';
+import 'package:vibration/vibration.dart';
 
 import '../../../core/services/storage_service.dart';
 import '../../../models/song.dart';
@@ -26,6 +27,8 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
   final Set<String> _hiddenGhosts = {};
 
   final ScrollController _scrollController = ScrollController();
+  bool? _dragSelectIntent;
+  int _lastDragIndex = -1;
 
   @override
   void dispose() {
@@ -33,14 +36,54 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
     super.dispose();
   }
 
+  void _applySelection(String itemId, bool select) {
+    final currentSet = Set<String>.from(ref.read(selectedItemsProvider));
+    if (select) {
+      currentSet.add(itemId);
+    } else {
+      currentSet.remove(itemId);
+    }
+    ref.read(selectedItemsProvider.notifier).state = currentSet;
+  }
+
   void _handleSelectionToggle(String itemId) {
     final selected = Set<String>.from(ref.read(selectedItemsProvider));
-    if (selected.contains(itemId)) {
-      selected.remove(itemId);
+    final isCurrentlySelected = selected.contains(itemId);
+    _applySelection(itemId, !isCurrentlySelected);
+  }
+
+  int _calculateIndex(double dy, double dx, BuildContext context) {
+    if (!_scrollController.hasClients) return -1;
+    final scrollOffset = _scrollController.offset;
+    final totalY = dy + scrollOffset - 8; // Account for top padding
+
+    if (totalY < 0) return -1;
+
+    if (!_isGridView) {
+      // ListView: Approx 70px per row (62px container + 8px padding)
+      return (totalY / 70).floor();
     } else {
-      selected.add(itemId);
+      // GridView Math
+      final screenWidth = MediaQuery.of(context).size.width;
+      final itemWidth = (screenWidth - 32 - 16) / 2; // 16px screen padding on sides + 16px center gap
+      final itemHeight = itemWidth / 1.1; // aspect ratio 1.1
+      final row = (totalY / (itemHeight + 16)).floor();
+      final col = (dx > (16 + itemWidth + 8)) ? 1 : 0;
+      return (row * 2) + col;
     }
-    ref.read(selectedItemsProvider.notifier).state = selected;
+  }
+
+  String? _getItemIdForSelection(int index, int backButtonCount, List<String> subFolders, List<Song> directSongs) {
+    if (index < backButtonCount) return null;
+    int folderIndex = index - backButtonCount;
+    if (folderIndex < subFolders.length) {
+      return subFolders[folderIndex];
+    }
+    int songIndex = folderIndex - subFolders.length;
+    if (songIndex < directSongs.length) {
+      return directSongs[songIndex].audioURL;
+    }
+    return null;
   }
 
   @override
@@ -313,43 +356,56 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                         subFolders.length +
                         directSongs.length;
 
-                    return _isGridView
-                        ? GridView.builder(
-                            padding: const EdgeInsets.only(
-                              left: 16,
-                              right: 16,
-                              top: 8,
-                              bottom: 120,
-                            ),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 16,
-                                  childAspectRatio: 1.1,
-                                ),
-                            itemCount: totalItems,
-                            itemBuilder: (context, index) => _buildUnifiedItem(
-                              index,
-                              backButtonCount,
-                              subFolders,
-                              folderItemCounts,
-                              directSongs,
-                              currentSongId,
-                              activeFolder,
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(
-                              left: 16,
-                              right: 16,
-                              top: 8,
-                              bottom: 120,
-                            ),
-                            itemCount: totalItems,
-                            itemBuilder: (context, index) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: _buildUnifiedItem(
+                    return GestureDetector(
+                      // Only intercept LongPress if we are in MultiSelect mode
+                      onLongPressStart: isMultiSelect ? (details) {
+                        final index = _calculateIndex(details.localPosition.dy, details.localPosition.dx, context);
+                        if (index >= backButtonCount && index < totalItems) {
+                          final itemId = _getItemIdForSelection(index, backButtonCount, subFolders, directSongs);
+                          if (itemId != null) {
+                            final isCurrentlySelected = selectedItems.contains(itemId);
+                            _dragSelectIntent = !isCurrentlySelected; 
+                            _lastDragIndex = index;
+                            _applySelection(itemId, _dragSelectIntent!);
+                            Vibration.vibrate(duration: 30); 
+                          }
+                        }
+                      } : null,
+                      onLongPressMoveUpdate: isMultiSelect ? (details) {
+                        if (_dragSelectIntent == null) return;
+                        final index = _calculateIndex(details.localPosition.dy, details.localPosition.dx, context);
+                        
+                        // Only apply selection if we crossed into a new valid index boundary
+                        if (index >= backButtonCount && index < totalItems && index != _lastDragIndex) {
+                          final itemId = _getItemIdForSelection(index, backButtonCount, subFolders, directSongs);
+                          if (itemId != null) {
+                            _applySelection(itemId, _dragSelectIntent!);
+                          }
+                          _lastDragIndex = index;
+                        }
+                      } : null,
+                      onLongPressEnd: isMultiSelect ? (_) {
+                        _dragSelectIntent = null;
+                        _lastDragIndex = -1;
+                      } : null,
+                      child: _isGridView
+                          ? GridView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.only(
+                                left: 16,
+                                right: 16,
+                                top: 8,
+                                bottom: 120,
+                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                    childAspectRatio: 1.1,
+                                  ),
+                              itemCount: totalItems,
+                              itemBuilder: (context, index) => _buildUnifiedItem(
                                 index,
                                 backButtonCount,
                                 subFolders,
@@ -358,8 +414,30 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                                 currentSongId,
                                 activeFolder,
                               ),
+                            )
+                          : ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.only(
+                                left: 16,
+                                right: 16,
+                                top: 8,
+                                bottom: 120,
+                              ),
+                              itemCount: totalItems,
+                              itemBuilder: (context, index) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: _buildUnifiedItem(
+                                  index,
+                                  backButtonCount,
+                                  subFolders,
+                                  folderItemCounts,
+                                  directSongs,
+                                  currentSongId,
+                                  activeFolder,
+                                ),
+                              ),
                             ),
-                          );
+                    );
                   },
                 ),
               ),
@@ -457,10 +535,11 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
       }
     };
 
-    final onLongPress = () {
-      if (!isCloud && !isMultiSelect) {
+    final onLongPress = isMultiSelect ? null : () {
+      if (!isCloud) {
         ref.read(multiSelectProvider.notifier).state = true;
         _handleSelectionToggle(folderName);
+        Vibration.vibrate(duration: 30);
       }
     };
 
@@ -687,11 +766,10 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
       ref.read(playerControllerProvider.notifier).playQueue(queue, index);
     };
 
-    final onLongPress = () {
-      if (!isMultiSelect) {
-        ref.read(multiSelectProvider.notifier).state = true;
-        _handleSelectionToggle(song.audioURL);
-      }
+    final onLongPress = isMultiSelect ? null : () {
+      ref.read(multiSelectProvider.notifier).state = true;
+      _handleSelectionToggle(song.audioURL);
+      Vibration.vibrate(duration: 30);
     };
 
     if (_isGridView) {
