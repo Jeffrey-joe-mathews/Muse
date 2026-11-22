@@ -65,7 +65,9 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
     } else {
       // GridView Math
       final screenWidth = MediaQuery.of(context).size.width;
-      final itemWidth = (screenWidth - 32 - 16) / 2; // 16px screen padding on sides + 16px center gap
+      final itemWidth =
+          (screenWidth - 32 - 16) /
+          2; // 16px screen padding on sides + 16px center gap
       final itemHeight = itemWidth / 1.1; // aspect ratio 1.1
       final row = (totalY / (itemHeight + 16)).floor();
       final col = (dx > (16 + itemWidth + 8)) ? 1 : 0;
@@ -73,11 +75,39 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
     }
   }
 
-  String? _getItemIdForSelection(int index, int backButtonCount, List<String> subFolders, List<Song> directSongs) {
+  // String? _getItemIdForSelection(
+  //   int index,
+  //   int backButtonCount,
+  //   List<String> subFolders,
+  //   List<Song> directSongs,
+  // ) {
+  //   if (index < backButtonCount) return null;
+  //   int folderIndex = index - backButtonCount;
+  //   if (folderIndex < subFolders.length) {
+  //     return subFolders[folderIndex];
+  //   }
+  //   int songIndex = folderIndex - subFolders.length;
+  //   if (songIndex < directSongs.length) {
+  //     return directSongs[songIndex].audioURL;
+  //   }
+  //   return null;
+  // }
+
+  String? _getItemIdForSelection(
+    int index,
+    int backButtonCount,
+    List<String> subFolders,
+    List<Song> directSongs,
+    String? activeFolder,
+  ) {
     if (index < backButtonCount) return null;
     int folderIndex = index - backButtonCount;
     if (folderIndex < subFolders.length) {
-      return subFolders[folderIndex];
+      final folderName = subFolders[folderIndex];
+      if (folderName == "Cloud Streams") return null;
+      
+      final targetPath = activeFolder == null ? folderName : '$activeFolder/$folderName';
+      return '${StorageService().vaultPath}/$targetPath';
     }
     int songIndex = folderIndex - subFolders.length;
     if (songIndex < directSongs.length) {
@@ -358,36 +388,66 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
 
                     return GestureDetector(
                       // Only intercept LongPress if we are in MultiSelect mode
-                      onLongPressStart: isMultiSelect ? (details) {
-                        final index = _calculateIndex(details.localPosition.dy, details.localPosition.dx, context);
-                        if (index >= backButtonCount && index < totalItems) {
-                          final itemId = _getItemIdForSelection(index, backButtonCount, subFolders, directSongs);
-                          if (itemId != null) {
-                            final isCurrentlySelected = selectedItems.contains(itemId);
-                            _dragSelectIntent = !isCurrentlySelected; 
-                            _lastDragIndex = index;
-                            _applySelection(itemId, _dragSelectIntent!);
-                            Vibration.vibrate(duration: 30); 
-                          }
-                        }
-                      } : null,
-                      onLongPressMoveUpdate: isMultiSelect ? (details) {
-                        if (_dragSelectIntent == null) return;
-                        final index = _calculateIndex(details.localPosition.dy, details.localPosition.dx, context);
-                        
-                        // Only apply selection if we crossed into a new valid index boundary
-                        if (index >= backButtonCount && index < totalItems && index != _lastDragIndex) {
-                          final itemId = _getItemIdForSelection(index, backButtonCount, subFolders, directSongs);
-                          if (itemId != null) {
-                            _applySelection(itemId, _dragSelectIntent!);
-                          }
-                          _lastDragIndex = index;
-                        }
-                      } : null,
-                      onLongPressEnd: isMultiSelect ? (_) {
-                        _dragSelectIntent = null;
-                        _lastDragIndex = -1;
-                      } : null,
+                      onLongPressStart: isMultiSelect
+                          ? (details) {
+                              final index = _calculateIndex(
+                                details.localPosition.dy,
+                                details.localPosition.dx,
+                                context,
+                              );
+                              if (index >= backButtonCount &&
+                                  index < totalItems) {
+                                final itemId = _getItemIdForSelection(
+                                  index,
+                                  backButtonCount,
+                                  subFolders,
+                                  directSongs,
+                                  activeFolder
+                                );
+                                if (itemId != null) {
+                                  final isCurrentlySelected = selectedItems
+                                      .contains(itemId);
+                                  _dragSelectIntent = !isCurrentlySelected;
+                                  _lastDragIndex = index;
+                                  _applySelection(itemId, _dragSelectIntent!);
+                                  Vibration.vibrate(duration: 30);
+                                }
+                              }
+                            }
+                          : null,
+                      onLongPressMoveUpdate: isMultiSelect
+                          ? (details) {
+                              if (_dragSelectIntent == null) return;
+                              final index = _calculateIndex(
+                                details.localPosition.dy,
+                                details.localPosition.dx,
+                                context,
+                              );
+
+                              // Only apply selection if we crossed into a new valid index boundary
+                              if (index >= backButtonCount &&
+                                  index < totalItems &&
+                                  index != _lastDragIndex) {
+                                final itemId = _getItemIdForSelection(
+                                  index,
+                                  backButtonCount,
+                                  subFolders,
+                                  directSongs,
+                                  activeFolder
+                                );
+                                if (itemId != null) {
+                                  _applySelection(itemId, _dragSelectIntent!);
+                                }
+                                _lastDragIndex = index;
+                              }
+                            }
+                          : null,
+                      onLongPressEnd: isMultiSelect
+                          ? (_) {
+                              _dragSelectIntent = null;
+                              _lastDragIndex = -1;
+                            }
+                          : null,
                       child: _isGridView
                           ? GridView.builder(
                               controller: _scrollController,
@@ -405,15 +465,16 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                                     childAspectRatio: 1.1,
                                   ),
                               itemCount: totalItems,
-                              itemBuilder: (context, index) => _buildUnifiedItem(
-                                index,
-                                backButtonCount,
-                                subFolders,
-                                folderItemCounts,
-                                directSongs,
-                                currentSongId,
-                                activeFolder,
-                              ),
+                              itemBuilder: (context, index) =>
+                                  _buildUnifiedItem(
+                                    index,
+                                    backButtonCount,
+                                    subFolders,
+                                    folderItemCounts,
+                                    directSongs,
+                                    currentSongId,
+                                    activeFolder,
+                                  ),
                             )
                           : ListView.builder(
                               controller: _scrollController,
@@ -508,12 +569,16 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
     final isMultiSelect = ref.watch(multiSelectProvider);
     final selectedItems = ref.watch(selectedItemsProvider);
 
-    final isSelected = selectedItems.contains(folderName) && !isCloud;
+    final targetPath = activeFolder == null ? folderName : '$activeFolder/$folderName';
+    final absolutePath = '${StorageService().vaultPath}/$targetPath';
+    final selectionId = isCloud ? "Cloud Streams" : absolutePath;
+
+    final isSelected = selectedItems.contains(selectionId) && !isCloud;
     final icon = isCloud ? Icons.cloud_outlined : Icons.folder_open_rounded;
 
     final onTap = () async {
       if (isMultiSelect) {
-        if (!isCloud) _handleSelectionToggle(folderName);
+        if (!isCloud) _handleSelectionToggle(selectionId);
         return;
       }
       if (!isCloud) {
@@ -535,13 +600,15 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
       }
     };
 
-    final onLongPress = isMultiSelect ? null : () {
-      if (!isCloud) {
-        ref.read(multiSelectProvider.notifier).state = true;
-        _handleSelectionToggle(folderName);
-        Vibration.vibrate(duration: 30);
-      }
-    };
+    final onLongPress = isMultiSelect
+        ? null
+        : () {
+            if (!isCloud) {
+              ref.read(multiSelectProvider.notifier).state = true;
+              _handleSelectionToggle(selectionId);
+              Vibration.vibrate(duration: 30);
+            }
+          };
 
     if (_isGridView) {
       return InkWell(
@@ -766,11 +833,13 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
       ref.read(playerControllerProvider.notifier).playQueue(queue, index);
     };
 
-    final onLongPress = isMultiSelect ? null : () {
-      ref.read(multiSelectProvider.notifier).state = true;
-      _handleSelectionToggle(song.audioURL);
-      Vibration.vibrate(duration: 30);
-    };
+    final onLongPress = isMultiSelect
+        ? null
+        : () {
+            ref.read(multiSelectProvider.notifier).state = true;
+            _handleSelectionToggle(song.audioURL);
+            Vibration.vibrate(duration: 30);
+          };
 
     if (_isGridView) {
       return InkWell(

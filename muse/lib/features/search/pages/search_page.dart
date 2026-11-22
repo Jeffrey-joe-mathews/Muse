@@ -11,7 +11,6 @@ import '../controllers/history_controller.dart';
 import '../../player/controllers/player_controller.dart';
 import '../../../models/song.dart';
 
-// 1. IMPORTING THE GLOBAL PRIMITIVES
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/primitives/muse_glass.dart';
 

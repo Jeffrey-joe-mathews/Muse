@@ -9,10 +9,12 @@
 
 // TwT
 import 'dart:io';
+import 'package:archive/archive_io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:muse_local_db/muse_local_db.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../models/song.dart'; 
 import '../../../providers/local/local_provider.dart'; 
 import '../../../core/services/storage_service.dart';
@@ -234,6 +236,138 @@ class CollectionController extends StateNotifier<AsyncValue<List<Song>>> {
     
     await _addSongToGraph(path, folder);
     await loadSongs(); 
+  }
+
+  Future<String?> createZipArchive(
+    Set<String> selectedPaths, {
+    void Function(int count, int total)? onProgress,
+  }) async {
+    try {
+      debugPrint("\n=== 📦 ZIP COMPILATION INITIATED ===");
+      final tempDir = await getTemporaryDirectory();
+      final zipPath = '${tempDir.path}/Muse_Export_${DateTime.now().millisecondsSinceEpoch}.zip';
+      
+      final encoder = ZipFileEncoder();
+      encoder.create(zipPath);
+
+      List<Map<String, dynamic>> packTasks = [];
+
+      for (var path in selectedPaths) {
+        if (path == "Cloud Streams" || path.startsWith('stream://')) {
+          debugPrint("🚫 SKIPPING NETWORK STREAM: $path");
+          continue;
+        }
+
+        final entityType = FileSystemEntity.typeSync(path);
+
+        if (entityType == FileSystemEntityType.file) {
+          final file = File(path);
+          final fileName = file.path.split('/').last;
+          if (fileName == '.muse_id') continue; 
+          
+          packTasks.add({'file': file, 'zipPath': fileName});
+          
+        } else if (entityType == FileSystemEntityType.directory) {
+          final dir = Directory(path);
+          final dirName = dir.path.split('/').last;
+          
+          final contents = dir.listSync(recursive: true).whereType<File>();
+          
+          for (var item in contents) {
+            final fileName = item.path.split('/').last;
+            if (fileName == '.muse_id') continue; // 🚫 DROP HIDDEN FILES
+            
+            final relativePath = '$dirName/${item.path.substring(dir.path.length + 1)}';
+            packTasks.add({'file': item, 'zipPath': relativePath});
+          }
+        }
+      }
+
+      final totalFiles = packTasks.length;
+      for (int i = 0; i < totalFiles; i++) {
+        final file = packTasks[i]['file'] as File;
+        final targetZipPath = packTasks[i]['zipPath'] as String;
+
+        debugPrint("   ↳ 🎵 Packing File: $targetZipPath");
+        
+        final bytes = file.readAsBytesSync();
+        encoder.addArchiveFile(ArchiveFile(targetZipPath, bytes.length, bytes));
+
+        onProgress?.call(i + 1, totalFiles);
+        await Future.delayed(const Duration(milliseconds: 5)); 
+      }
+
+      encoder.close();
+      final finalZip = File(zipPath);
+      final sizeMb = (finalZip.lengthSync() / (1024 * 1024)).toStringAsFixed(2);
+      
+      debugPrint("✅ COMPILATION SUCCESS: Generated $sizeMb MB archive at $zipPath");
+      debugPrint("=====================================\n");
+      
+      return zipPath;
+    } catch (e) {
+      debugPrint("❌ ZIP COMPILATION FAILED: $e");
+      return null;
+    }
+  }
+
+  Future<void> deleteItems(Set<String> selectedPaths) async {
+    try {
+      debugPrint("\n=== 🗑️ DELETION INITIATED ===");
+      bool physicalChanges = false;
+      List<String> streamIdsToRemove = [];
+
+      for (var path in selectedPaths) {
+        // Prevent deleting the root virtual folder
+        if (path == "Cloud Streams") {
+          debugPrint("🚫 SKIPPING: Cannot delete the root Cloud Streams folder.");
+          continue;
+        }
+
+        // Handle Virtual/Network Streams
+        if (path.startsWith('stream://')) {
+          streamIdsToRemove.add(path);
+          debugPrint("   ↳ ☁️ Queued stream for removal: $path");
+          continue;
+        }
+
+        // Handle Physical Files & Folders
+        final entityType = FileSystemEntity.typeSync(path);
+
+        if (entityType == FileSystemEntityType.file) {
+          final file = File(path);
+          if (file.existsSync()) {
+            file.deleteSync();
+            physicalChanges = true;
+            debugPrint("   ↳ 🎵 Deleted File: $path");
+          }
+        } else if (entityType == FileSystemEntityType.directory) {
+          final dir = Directory(path);
+          if (dir.existsSync()) {
+            dir.deleteSync(recursive: true); // recursive: true deletes all contents inside
+            physicalChanges = true;
+            debugPrint("   ↳ 📁 Deleted Directory: $path");
+          }
+        }
+      }
+
+      // 1. Clean up network streams directly from the DB
+      if (streamIdsToRemove.isNotEmpty) {
+        await _db.deleteSongByPath(streamIdsToRemove);
+        debugPrint("✅ Removed ${streamIdsToRemove.length} streams from vault.");
+        // We need to reload songs explicitly since syncVault ignores network streams
+        await loadSongs(); 
+      }
+
+      if (physicalChanges) {
+        debugPrint("✅ Physical files wiped. Triggering syncVault to clean database...");
+        await syncVault();
+      }
+      
+      debugPrint("=====================================\n");
+    } catch (e) {
+      debugPrint("❌ DELETION FAILED: $e");
+    }
   }
 
   // Saves a network stream to the Vault. 

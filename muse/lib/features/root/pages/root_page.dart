@@ -8,18 +8,23 @@ import 'package:muse/core/services/storage_service.dart';
 import 'package:muse/core/theme/app_colors.dart';
 import 'package:muse/features/library/controllers/collection_controller.dart';
 import 'package:muse/features/radio_player/pages/radio_dashboard_page.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:ui';
 
 // Pages
-import '../../search/pages/search_page.dart'; 
+import '../../search/pages/search_page.dart';
 import 'package:muse/features/player/widgets/orb.dart';
 import 'package:muse/features/flow/pages/flow_page.dart';
 import 'package:muse/features/library/pages/collection_page.dart';
+
+import 'package:archive/archive_io.dart';
+import 'package:share_plus/share_plus.dart';
 
 final navIndexProvider = StateProvider<int>((ref) => 0);
 final vaultMenuProvider = StateProvider<bool>((ref) => false);
 final multiSelectProvider = StateProvider<bool>((ref) => false);
 final selectedItemsProvider = StateProvider<Set<String>>((ref) => {});
+final loadingProvider = StateProvider<bool>((ref) => false);
 
 class RootPage extends ConsumerWidget {
   const RootPage({super.key});
@@ -32,7 +37,7 @@ class RootPage extends ConsumerWidget {
 
     final pages = [
       const FlowPage(),
-      const SearchPage(), 
+      const SearchPage(),
       const CollectionPage(),
       const RadioDashboardPage(),
     ];
@@ -42,10 +47,7 @@ class RootPage extends ConsumerWidget {
       extendBody: true,
       body: Stack(
         children: [
-          IndexedStack(
-            index: currentIndex,
-            children: pages,
-          ),
+          IndexedStack(index: currentIndex, children: pages),
 
           AnimatedOpacity(
             duration: const Duration(milliseconds: 550),
@@ -53,17 +55,15 @@ class RootPage extends ConsumerWidget {
             child: IgnorePointer(
               ignoring: !isMenuOpen,
               child: GestureDetector(
-                onTap:() => ref.read(vaultMenuProvider.notifier).state = false,
+                onTap: () => ref.read(vaultMenuProvider.notifier).state = false,
                 behavior: HitTestBehavior.opaque,
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: Container(
-                    color: AppColors.glassBlur,
-                  ),
+                  child: Container(color: AppColors.glassBlur),
                 ),
               ),
             ),
-          )
+          ),
         ],
       ),
       bottomNavigationBar: Column(
@@ -73,7 +73,7 @@ class RootPage extends ConsumerWidget {
           AnimatedOpacity(
             duration: const Duration(milliseconds: 200),
             opacity: isMenuOpen ? 0.0 : 1.0,
-            child: isMenuOpen ? SizedBox(height: 20,) : MuseOrb(),
+            child: isMenuOpen ? SizedBox(height: 20) : MuseOrb(),
           ),
           const FloatingDock(),
         ],
@@ -104,63 +104,289 @@ class FloatingDock extends ConsumerWidget {
               curve: Curves.easeOutExpo,
               height: isMenuOpen ? 350 : 65,
               decoration: BoxDecoration(
-                color: (isMenuOpen || isMultiSelect) ? Colors.white.withOpacity(0.12) : Colors.white.withOpacity(0.08),
+                color: (isMenuOpen || isMultiSelect)
+                    ? Colors.white.withOpacity(0.12)
+                    : Colors.white.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(isMenuOpen ? 24 : 30),
-                border: Border.all(color: Colors.white.withOpacity((isMenuOpen || isMultiSelect) ? 0.09 : 0.05)),
+                border: Border.all(
+                  color: Colors.white.withOpacity(
+                    (isMenuOpen || isMultiSelect) ? 0.09 : 0.05,
+                  ),
+                ),
               ),
               child: AnimatedCrossFade(
                 duration: const Duration(milliseconds: 0),
-                crossFadeState: isMenuOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                crossFadeState: isMenuOpen
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
                 alignment: Alignment.bottomCenter,
-                
+
                 firstChild: AnimatedSwitcher(
                   duration: Duration(milliseconds: 300),
-                  child: !isMultiSelect 
-                  ? 
-                  SizedBox(
-                    height: 65,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _DockItem(icon: Icons.waves_rounded, label: "Flow", index: 0, currentIndex: currentIndex, ref: ref),
-                        _DockItem(icon: Icons.explore, label: "Explore", index: 1, currentIndex: currentIndex, ref: ref),
-                        _DockItem(icon: Icons.library_music, label: "Library", index: 2, currentIndex: currentIndex, ref: ref),
-                        _DockItem(icon: Icons.radio, label: "Radio", index: 3, currentIndex: currentIndex, ref: ref),
-                      ],
-                    ),
-                  )
-                  :
-                  SizedBox(
-                    key: const ValueKey('selection_dock'),
-                    height: 65,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _DockAction( label: "Cancel",
-                          icon: Icons.close_rounded,
-                          onTap:() {
-                            ref.read(multiSelectProvider.notifier).state = false;
-                            ref.read(selectedItemsProvider.notifier).state = {};
-                          },
-                        ),
-                        _DockAction( label: "Share",
-                        icon: Icons.ios_share_rounded,
-                        onTap: () {
-                          // TODO
-                        },
-                        ),
-                        _DockAction ( label: "Delete",
-                        icon: Icons.delete_outline_rounded,
-                        isDestructive: true,
-                        onTap: () {
-                          // TODO
-                        },
+                  child: !isMultiSelect
+                      ? SizedBox(
+                          height: 65,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _DockItem(
+                                icon: Icons.waves_rounded,
+                                label: "Flow",
+                                index: 0,
+                                currentIndex: currentIndex,
+                                ref: ref,
+                              ),
+                              _DockItem(
+                                icon: Icons.explore,
+                                label: "Explore",
+                                index: 1,
+                                currentIndex: currentIndex,
+                                ref: ref,
+                              ),
+                              _DockItem(
+                                icon: Icons.library_music,
+                                label: "Library",
+                                index: 2,
+                                currentIndex: currentIndex,
+                                ref: ref,
+                              ),
+                              _DockItem(
+                                icon: Icons.radio,
+                                label: "Radio",
+                                index: 3,
+                                currentIndex: currentIndex,
+                                ref: ref,
+                              ),
+                            ],
+                          ),
                         )
-                      ],
-                    ),
-                  )
+                      : SizedBox(
+                          key: const ValueKey('selection_dock'),
+                          height: 65,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _DockAction(
+                                label: "Cancel",
+                                icon: Icons.close_rounded,
+                                onTap: () {
+                                  ref.read(multiSelectProvider.notifier).state =
+                                      false;
+                                  ref
+                                          .read(selectedItemsProvider.notifier)
+                                          .state =
+                                      {};
+                                },
+                              ),
+                              _DockAction(
+                                label: "Share",
+                                icon: Icons.ios_share_rounded,
+                                onTap: () async {
+                                  final selected = ref.read(
+                                    selectedItemsProvider,
+                                  );
+                                  if (selected.isEmpty) return;
+
+                                  final paths = selected
+                                      .where(
+                                        (p) =>
+                                            p != "Cloud Streams" &&
+                                            !p.startsWith('stream://'),
+                                      )
+                                      .toList();
+
+                                  if (paths.isEmpty) return;
+
+                                  ref.read(multiSelectProvider.notifier).state =
+                                      false;
+                                  ref
+                                          .read(selectedItemsProvider.notifier)
+                                          .state =
+                                      {};
+
+                                  if (paths.length == 1 &&
+                                      FileSystemEntity.isFileSync(
+                                        paths.first,
+                                      )) {
+                                    await Share.shareXFiles([
+                                      XFile(paths.first),
+                                    ], text: "Shared from Muse Vault");
+                                    return;
+                                  }
+
+                                  int currentProgress = 0;
+                                  int totalFiles = 0;
+                                  StateSetter? dialogSetState;
+
+                                  showDialog(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (context) => StatefulBuilder(
+                                      builder: (context, setState) {
+                                        dialogSetState = setState;
+                                        
+                                        final double targetProgress = totalFiles > 0 ? (currentProgress / totalFiles) : 0.0;
+
+                                        return AlertDialog(
+                                          backgroundColor: AppColors.hardwareSurface,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                            side: BorderSide(color: AppColors.glassBorder),
+                                          ),
+                                          content: Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                // The Magic: Smooth interpolation between progress jumps
+                                                TweenAnimationBuilder<double>(
+                                                  tween: Tween<double>(begin: 0.0, end: targetProgress),
+                                                  duration: const Duration(milliseconds: 250),
+                                                  curve: Curves.easeOutCubic,
+                                                  builder: (context, value, _) {
+                                                    return SizedBox(
+                                                      height: 48,
+                                                      width: 48,
+                                                      child: CircularProgressIndicator(
+                                                        value: totalFiles > 0 ? value : null, // Spins when scanning, fills when packing
+                                                        color: AppColors.pureWhite,
+                                                        backgroundColor: AppColors.pureWhite.withOpacity(0.1),
+                                                        strokeWidth: 4,
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                                const SizedBox(height: 24),
+                                                const Text(
+                                                  "PACKING VAULT",
+                                                  style: TextStyle(
+                                                    color: AppColors.pureWhite,
+                                                    fontSize: 12,
+                                                    letterSpacing: 2.0,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  totalFiles > 0
+                                                      ? "$currentProgress / $totalFiles files"
+                                                      : "Scanning items...",
+                                                  style: const TextStyle(
+                                                    color: AppColors.glassTextMuted,
+                                                    fontSize: 12,
+                                                    fontFamily: 'monospace',
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  );
+
+                                  await Future.delayed(
+                                    const Duration(milliseconds: 300),
+                                  );
+
+                                  final zipPath = await ref
+                                      .read(
+                                        collectionControllerProvider.notifier,
+                                      )
+                                      .createZipArchive(
+                                        paths.toSet(),
+                                        onProgress: (count, total) {
+                                          if (dialogSetState != null) {
+                                            dialogSetState!(() {
+                                              currentProgress = count;
+                                              totalFiles = total;
+                                            });
+                                          }
+                                        },
+                                      );
+
+                                  if (context.mounted) Navigator.pop(context);
+
+                                  if (zipPath != null) {
+                                    await Share.shareXFiles([
+                                      XFile(zipPath),
+                                    ], text: "Shared from Muse Vault");
+                                  }
+                                },
+                              ),
+                              _DockAction(
+                                label: "Delete",
+                                icon: Icons.delete_outline_rounded,
+                                isDestructive: true,
+                                onTap: () async {
+                                  final selected = ref.read(selectedItemsProvider);
+                                  if (selected.isEmpty) return;
+
+                                  final bool? confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) {
+                                      return AlertDialog(
+                                        backgroundColor: AppColors.hardwareSurface,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                          side: BorderSide(color: AppColors.glassBorder),
+                                        ),
+                                        title: const Text(
+                                          "CONFIRM DELETION",
+                                          style: TextStyle(
+                                            color: Colors.redAccent,
+                                            fontSize: 14,
+                                            letterSpacing: 1.0,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        content: Text(
+                                          "Are you sure you want to delete ${selected.length} item${selected.length > 1 ? 's' : ''}?\n\nPhysical files will be permanently removed from your storage.",
+                                          style: const TextStyle(
+                                            color: AppColors.pureWhite,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, false),
+                                            child: const Text(
+                                              "CANCEL",
+                                              style: TextStyle(color: AppColors.glassTextMuted),
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, true),
+                                            child: const Text(
+                                              "DELETE",
+                                              style: TextStyle(
+                                                color: Colors.redAccent,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+
+                                  if (confirm != true) return;
+
+                                  final pathsToDelete = Set<String>.from(selected);
+
+                                  ref.read(multiSelectProvider.notifier).state = false;
+                                  ref.read(selectedItemsProvider.notifier).state = {};
+
+                                  await ref
+                                      .read(collectionControllerProvider.notifier)
+                                      .deleteItems(pathsToDelete);
+                                },
+                              ) ,
+                            ],
+                          ),
+                        ),
                 ),
-                
+
                 secondChild: SizedBox(
                   height: 360,
                   width: double.infinity,
@@ -173,41 +399,62 @@ class FloatingDock extends ConsumerWidget {
                         const Padding(
                           padding: EdgeInsets.only(left: 8.0, bottom: 16.0),
                           child: Text(
-                            "VAULT OPERATIONS", 
-                            style: TextStyle(color: Colors.white54, fontSize: 10, letterSpacing: 2.0, fontWeight: FontWeight.bold)
+                            "VAULT OPERATIONS",
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 10,
+                              letterSpacing: 2.0,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         _VaultMenuAction(
-                          icon: Icons.audio_file_outlined, 
-                          label: "Add Song", 
+                          icon: Icons.audio_file_outlined,
+                          label: "Add Songs", // Updated to plural
                           onTap: () async {
                             ref.read(vaultMenuProvider.notifier).state = false; // Auto-close menu
-                            FilePickerResult? result = await FilePicker.pickFiles(type: FileType.audio);
+                            
+                            FilePickerResult? result = await FilePicker.pickFiles(
+                              type: FileType.audio,
+                              allowMultiple: true,
+                            );
+
                             if (result != null && result.files.isNotEmpty) {
-                              final pickedPath = result.files.first.path;
-                              final name = result.files.first.name;
-                              if (pickedPath != null) {
-                                final activeFolder = ref.read(activeFolderProvider);
-                                final vaultPath = StorageService().vaultPath;
-                                final targetDir = (activeFolder == null || activeFolder == "Cloud Streams") 
-                                    ? Directory('$vaultPath/Inbox') 
-                                    : Directory('$vaultPath/$activeFolder');
+                              final activeFolder = ref.read(activeFolderProvider);
+                              final vaultPath = StorageService().vaultPath;
+                              final targetDir = (activeFolder == null || activeFolder == "Cloud Streams")
+                                  ? Directory('$vaultPath/Inbox')
+                                  : Directory('$vaultPath/$activeFolder');
+
+                              if (!targetDir.existsSync()) {
+                                targetDir.createSync(recursive: true);
+                              }
+
+                              // Loop through all selected files
+                              for (var pickedFile in result.files) {
+                                final pickedPath = pickedFile.path;
+                                final name = pickedFile.name;
                                 
-                                if (!targetDir.existsSync()) targetDir.createSync();
-                                final permanentFile = await File(pickedPath).copy('${targetDir.path}/$name');
-                                ref.read(collectionControllerProvider.notifier).addSong(permanentFile.path);
-                                File(pickedPath).delete().ignore();
+                                if (pickedPath != null) {
+                                  final permanentFile = await File(pickedPath).copy('${targetDir.path}/$name');
+                                  
+                                  await ref
+                                      .read(collectionControllerProvider.notifier)
+                                      .addSong(permanentFile.path);
+                                      
+                                  File(pickedPath).delete().ignore();
+                                }
                               }
                             }
-                          }
-                        ),
+                          },
+                        ),    
 
                         _VaultMenuAction(
-                          icon: Icons.create_new_folder_outlined, 
-                          label: "Create Folder", 
+                          icon: Icons.create_new_folder_outlined,
+                          label: "Create Folder",
                           onTap: () async {
                             ref.read(vaultMenuProvider.notifier).state = false;
-                            
+
                             String? folderName = await showDialog<String>(
                               context: context,
                               builder: (context) {
@@ -216,121 +463,189 @@ class FloatingDock extends ConsumerWidget {
                                   backgroundColor: AppColors.hardwareSurface,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    side: BorderSide(color: AppColors.glassBorder),
+                                    side: BorderSide(
+                                      color: AppColors.glassBorder,
+                                    ),
                                   ),
-                                  title: const Text("CREATE FOLDER", style: TextStyle(color: AppColors.pureWhite, fontSize: 14, letterSpacing: 1.0, fontWeight: FontWeight.w800)),
+                                  title: const Text(
+                                    "CREATE FOLDER",
+                                    style: TextStyle(
+                                      color: AppColors.pureWhite,
+                                      fontSize: 14,
+                                      letterSpacing: 1.0,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
                                   content: TextField(
                                     autofocus: true,
-                                    style: const TextStyle(color: AppColors.pureWhite),
+                                    style: const TextStyle(
+                                      color: AppColors.pureWhite,
+                                    ),
                                     decoration: InputDecoration(
                                       hintText: "Folder Name",
-                                      hintStyle: const TextStyle(color: AppColors.glassTextMuted),
-                                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.glassBorder)),
-                                      focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: AppColors.pureWhite)),
+                                      hintStyle: const TextStyle(
+                                        color: AppColors.glassTextMuted,
+                                      ),
+                                      enabledBorder: UnderlineInputBorder(
+                                        borderSide: BorderSide(
+                                          color: AppColors.glassBorder,
+                                        ),
+                                      ),
+                                      focusedBorder: const UnderlineInputBorder(
+                                        borderSide: BorderSide(
+                                          color: AppColors.pureWhite,
+                                        ),
+                                      ),
                                     ),
                                     onChanged: (val) => input = val,
-                                    onSubmitted: (val) => Navigator.pop(context, val),
+                                    onSubmitted: (val) =>
+                                        Navigator.pop(context, val),
                                   ),
                                   actions: [
                                     TextButton(
                                       onPressed: () => Navigator.pop(context),
-                                      child: const Text("CANCEL", style: TextStyle(color: AppColors.glassTextMuted)),
+                                      child: const Text(
+                                        "CANCEL",
+                                        style: TextStyle(
+                                          color: AppColors.glassTextMuted,
+                                        ),
+                                      ),
                                     ),
                                     TextButton(
-                                      onPressed: () => Navigator.pop(context, input),
-                                      child: const Text("CREATE", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
+                                      onPressed: () =>
+                                          Navigator.pop(context, input),
+                                      child: const Text(
+                                        "CREATE",
+                                        style: TextStyle(
+                                          color: AppColors.pureWhite,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 );
-                              }
+                              },
                             );
 
-                            if (folderName != null && folderName.trim().isNotEmpty) {
-                              final activeFolder = ref.read(activeFolderProvider);
+                            if (folderName != null &&
+                                folderName.trim().isNotEmpty) {
+                              final activeFolder = ref.read(
+                                activeFolderProvider,
+                              );
                               final vaultPath = StorageService().vaultPath;
-                              final targetPath = (activeFolder == null || activeFolder == "Cloud Streams")
+                              final targetPath =
+                                  (activeFolder == null ||
+                                      activeFolder == "Cloud Streams")
                                   ? '$vaultPath/${folderName.trim()}'
                                   : '$vaultPath/$activeFolder/${folderName.trim()}';
 
                               final newDir = Directory(targetPath);
                               if (!newDir.existsSync()) {
                                 newDir.createSync(recursive: true);
-                                ref.read(collectionControllerProvider.notifier).syncVault();
+                                ref
+                                    .read(collectionControllerProvider.notifier)
+                                    .syncVault();
                               }
                             }
-                          }
+                          },
                         ),
 
-                        
                         _VaultMenuAction(
-                          icon: Icons.drive_folder_upload_outlined, 
-                          label: "Import Folder", 
+                          icon: Icons.drive_folder_upload_outlined,
+                          label: "Import Folder",
                           onTap: () async {
                             ref.read(vaultMenuProvider.notifier).state = false;
-                            
+
                             // Ask OS to let user pick a folder
-                            String? selectedDirectory = await FilePicker.getDirectoryPath();
+                            String? selectedDirectory =
+                                await FilePicker.getDirectoryPath();
 
                             if (selectedDirectory != null) {
                               final sourceDir = Directory(selectedDirectory);
                               final folderName = sourceDir.path.split('/').last;
 
-                              final activeFolder = ref.read(activeFolderProvider);
+                              final activeFolder = ref.read(
+                                activeFolderProvider,
+                              );
                               final vaultPath = StorageService().vaultPath;
-                              
+
                               // Determine where this folder should go in the Vault
-                              final targetDirPath = (activeFolder == null || activeFolder == "Cloud Streams")
+                              final targetDirPath =
+                                  (activeFolder == null ||
+                                      activeFolder == "Cloud Streams")
                                   ? '$vaultPath/$folderName'
                                   : '$vaultPath/$activeFolder/$folderName';
 
                               final targetDir = Directory(targetDirPath);
-                              if (!targetDir.existsSync()) targetDir.createSync(recursive: true);
+                              if (!targetDir.existsSync())
+                                targetDir.createSync(recursive: true);
 
                               // Perform a recursive copy of the folder, but ONLY grab audio files to prevent garbage data
-                              await for (var entity in sourceDir.list(recursive: true, followLinks: false)) {
+                              await for (var entity in sourceDir.list(
+                                recursive: true,
+                                followLinks: false,
+                              )) {
                                 if (entity is File) {
-                                  final ext = entity.path.split('.').last.toLowerCase();
-                                  if (['mp3', 'flac', 'wav', 'm4a', 'aac', 'ogg', 'mpga'].contains(ext)) {
+                                  final ext = entity.path
+                                      .split('.')
+                                      .last
+                                      .toLowerCase();
+                                  if ([
+                                    'mp3',
+                                    'flac',
+                                    'wav',
+                                    'm4a',
+                                    'aac',
+                                    'ogg',
+                                    'mpga',
+                                  ].contains(ext)) {
                                     // Preserve the inner folder structure
-                                    final relativePath = entity.path.substring(sourceDir.path.length + 1);
-                                    final newFile = File('${targetDir.path}/$relativePath');
-                                    
-                                    if (!newFile.parent.existsSync()) newFile.parent.createSync(recursive: true);
+                                    final relativePath = entity.path.substring(
+                                      sourceDir.path.length + 1,
+                                    );
+                                    final newFile = File(
+                                      '${targetDir.path}/$relativePath',
+                                    );
+
+                                    if (!newFile.parent.existsSync())
+                                      newFile.parent.createSync(
+                                        recursive: true,
+                                      );
                                     await entity.copy(newFile.path);
                                   }
                                 }
                               }
-                              ref.read(collectionControllerProvider.notifier).syncVault();
+                              ref
+                                  .read(collectionControllerProvider.notifier)
+                                  .syncVault();
                             }
-                          }
+                          },
                         ),
 
-
                         _VaultMenuAction(
-                          icon: Icons.checklist_rounded, 
-                          label: "Multi-Select", 
+                          icon: Icons.checklist_rounded,
+                          label: "Multi-Select",
                           onTap: () {
                             ref.read(vaultMenuProvider.notifier).state = false;
                             ref.read(multiSelectProvider.notifier).state = true;
-                          }
+                          },
                         ),
                         _VaultMenuAction(
-                          icon: Icons.sync_rounded, 
-                          label: "Sync Vault", 
+                          icon: Icons.sync_rounded,
+                          label: "Sync Vault",
                           onTap: () {
                             ref.read(vaultMenuProvider.notifier).state = false;
-                            ref.read(collectionControllerProvider.notifier).syncVault();
-                          }
+                            ref
+                                .read(collectionControllerProvider.notifier)
+                                .syncVault();
+                          },
                         ),
                       ],
                     ),
                   ),
                 ),
-
-                
               ),
             ),
-
           ),
         ),
       ),
@@ -364,19 +679,29 @@ class _DockItem extends StatelessWidget {
         curve: Curves.easeOutExpo,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white.withOpacity(0.15) : Colors.transparent,
+          color: isSelected
+              ? Colors.white.withOpacity(0.15)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? Colors.white : Colors.white54, size: 24),
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.white54,
+              size: 24,
+            ),
             if (isSelected) ...[
               const SizedBox(width: 8),
               Text(
                 label,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
-            ]
+            ],
           ],
         ),
       ),
@@ -394,7 +719,7 @@ class _DockAction extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.isDestructive = false,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -407,9 +732,20 @@ class _DockAction extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(icon, color: isDestructive ? Colors.redAccent : AppColors.pureWhite, size: 22,),
-            const SizedBox(height: 6,),
-            Text(label, style: TextStyle( color: isDestructive ? Colors.redAccent : AppColors.pureWhite, fontSize: 10, fontWeight: FontWeight.bold),),
+            Icon(
+              icon,
+              color: isDestructive ? Colors.redAccent : AppColors.pureWhite,
+              size: 22,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isDestructive ? Colors.redAccent : AppColors.pureWhite,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -422,7 +758,11 @@ class _VaultMenuAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _VaultMenuAction({required this.icon, required this.label, required this.onTap});
+  const _VaultMenuAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -437,7 +777,11 @@ class _VaultMenuAction extends StatelessWidget {
             const SizedBox(width: 16),
             Text(
               label,
-              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
