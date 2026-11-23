@@ -50,12 +50,12 @@
 
 Muse combines high-performance native audio architecture with a dual-domain visual design language:
 
-### 🌌 Domain Expansion: *Glassy Sky*
+### Glassy Sky
 - **Frosted Glassmorphism (`MuseGlass`)**: Custom backdrop filters with subtle luminous borders and dark translucent acrylic shells.
 - **Living Dynamic Aura**: The `LivingAuraBackground` samples dominant, vibrant, and dark pigments from active album artwork in real time using `PaletteGenerator`, driving a continuous radial gradient drift.
 - **Adaptive Equalizer & Marquee**: Interactive sine-wave equalizer visualizers and layout-safe text tickers.
 
-### 📼 Domain Expansion: *Wal-kuh-mano*
+### Walkman
 - **Mechanical Tactile Primitives (`MuseTactileButton`)**: Physics-modeled spring buttons with depressed physical states, shadows, and device vibration haptics.
 - **Hardware Radio Deck**: Authentic 6-slot preset matrix with tap-to-tune and long-press-to-burn functionality into persistent local storage.
 - **Turntable & Reel Visualizers**: Rotating vinyl deck and cassette reel animations synchronized with audio playback states.
